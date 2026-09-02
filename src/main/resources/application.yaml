@@ -1,0 +1,33 @@
+server:
+  port: ${API_PORT:8080}
+
+spring:
+  application:
+    name: kairos-api-postgres
+
+  config:
+    import: "optional:file:./.env[extension=.properties]"
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+management:
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: health
+
+  endpoint:
+    health:
+      show-details: always
