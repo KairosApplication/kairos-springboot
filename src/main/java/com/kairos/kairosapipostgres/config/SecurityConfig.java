@@ -32,11 +32,17 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
 
                         .requestMatchers(
-                                "/health"
+                                "/health",
+                                "/users/registration",
+                                "/v3/api-docs/**",
+                                "/swagger-ui.html",
+                                "/swagger-ui/**"
                         ).permitAll()
 
                         .anyRequest().authenticated()
-                );
+                )
+
+                .httpBasic(withDefaults());
 
         return http.build();
     }

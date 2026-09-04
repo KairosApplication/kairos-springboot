@@ -38,7 +38,7 @@ public class CorsConfig {
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
 
-        source.registerCorsConfiguration("/kairos/**", config);
+        source.registerCorsConfiguration("/users/**", config);
 
         return source;
     }

@@ -66,7 +66,7 @@ spring:
     name: kairos-api-postgres
 
   config:
-    import: "optional:file:./.env[extension=.properties]"
+    import: "optional:file:./.env[.properties]"
 
   datasource:
     url: ${DB_URL}
@@ -78,7 +78,7 @@ spring:
     database: postgresql
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: validate
+      ddl-auto: ${JPA_DDL_AUTO:update}
     show-sql: true
 
 management:
@@ -98,7 +98,7 @@ O Spring interpreta o `.env` como um arquivo de propriedades por causa desta con
 ```yaml
 spring:
   config:
-    import: "optional:file:./.env[extension=.properties]"
+    import: "optional:file:./.env[.properties]"
 ```
 
 No Aiven, a URL deve começar com:
