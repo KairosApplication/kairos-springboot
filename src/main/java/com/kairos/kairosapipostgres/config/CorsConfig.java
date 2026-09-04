@@ -39,6 +39,7 @@ public class CorsConfig {
                 new UrlBasedCorsConfigurationSource();
 
         source.registerCorsConfiguration("/users/**", config);
+        source.registerCorsConfiguration("/api/v1/employees/**", config);
 
         return source;
     }
