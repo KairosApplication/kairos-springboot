@@ -104,7 +104,7 @@ class CustomerServiceTest {
         when(customerRepository.findById(1L))
                 .thenReturn(Optional.of(customer(1L, 10L)));
 
-        CustomerResponse response = service.findById(1L);
+        CustomerResponse response = service.findById(1L).orElseThrow();
 
         assertThat(response).isEqualTo(new CustomerResponse(1L, 10L, "Davi"));
     }
@@ -116,7 +116,7 @@ class CustomerServiceTest {
 
         service.deleteById(1L);
 
-        verify(customerRepository).delete(customer);
+        verify(customerRepository).deleteById(1L);
     }
 
     @Test
@@ -135,7 +135,7 @@ class CustomerServiceTest {
         assertThatThrownBy(() -> service.deleteById(99L))
                 .isInstanceOf(CustomerNotFoundException.class)
                 .hasMessage("Customer not found");
-        verify(customerRepository, never()).delete(any());
+        verify(customerRepository, never()).deleteById(any());
     }
 
     private Customer customer(Long id, Long userId) {

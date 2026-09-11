@@ -4,43 +4,48 @@ import com.kairos.kairosapipostgres.dto.request.CustomerRequest;
 import com.kairos.kairosapipostgres.dto.response.CustomerResponse;
 import com.kairos.kairosapipostgres.service.CustomerService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/customers")
 public class CustomerController {
 
-    @Autowired
-    private CustomerService service;
+    private final CustomerService customerService;
+
+    public CustomerController (CustomerService customerService) {
+        this.customerService = customerService;
+    }
 
 
-    @PostMapping
-    public ResponseEntity<CustomerResponse> create(
+    @PostMapping("/registration")
+    public ResponseEntity<CustomerResponse> register(
             @Valid @RequestBody CustomerRequest request
     ) {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(service.save(request));
+                .body(customerService.save(request));
     }
 
-    @GetMapping
+    @GetMapping("/list")
     public ResponseEntity<List<CustomerResponse>> list() {
-        return ResponseEntity.ok(service.findAll());
+        return ResponseEntity.ok(customerService.findAll());
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<CustomerResponse> findById(@PathVariable Long id) {
-        return ResponseEntity.ok(service.findById(id));
+    @GetMapping("find/{id}")
+    public ResponseEntity<Optional<CustomerResponse>> findById(@PathVariable Long id) {
+        return ResponseEntity.ok(customerService.findById(id));
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("delete/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        service.deleteById(id);
-        return ResponseEntity.noContent().build();
+        customerService.deleteById(id);
+        return ResponseEntity
+                .status (HttpStatus.NO_CONTENT)
+                .build();
     }
 }

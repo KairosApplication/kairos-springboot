@@ -14,15 +14,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class CustomerService {
 
-    private final CustomerRepository customerRepository;
+    private final CustomerRepository repository;
+
     private final UserRepository userRepository;
 
-    public CustomerService(CustomerRepository customerRepository, UserRepository userRepository) {
-        this.customerRepository = customerRepository;
+    public CustomerService (CustomerRepository repository, UserRepository userRepository) {
+        this.repository = repository;
         this.userRepository = userRepository;
     }
 
@@ -31,34 +33,33 @@ public class CustomerService {
         User user = userRepository.findById(request.userId())
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
 
-        if (customerRepository.existsByUserId(request.userId())) {
+        if (repository.existsByUserId(request.userId())) {
             throw new CustomerAlreadyExistsException("Customer already exists for this user");
         }
 
         Customer customer = CustomerMapper.toEntity(request, user);
-        return CustomerMapper.toResponse(customerRepository.save(customer));
+        return CustomerMapper.toResponse(repository.save(customer));
     }
 
     @Transactional(readOnly = true)
     public List<CustomerResponse> findAll() {
-        return customerRepository.findAll().stream()
+        return repository.findAll().stream()
                 .map(CustomerMapper::toResponse)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public CustomerResponse findById(Long id) {
-        return CustomerMapper.toResponse(findEntityById(id));
+    public Optional<CustomerResponse> findById(Long id) {
+        Customer customer = repository.findById(id)
+                .orElseThrow(() -> new CustomerNotFoundException("Customer not found"));
+        return Optional.of(CustomerMapper.toResponse(customer));
     }
 
     @Transactional
-    public void deleteById(Long id) {
-        Customer customer = findEntityById(id);
-        customerRepository.delete(customer);
-    }
-
-    private Customer findEntityById(Long id) {
-        return customerRepository.findById(id)
+    public boolean deleteById(Long id) {
+        repository.findById(id)
                 .orElseThrow(() -> new CustomerNotFoundException("Customer not found"));
+        repository.deleteById(id);
+        return true;
     }
 }

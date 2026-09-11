@@ -46,7 +46,7 @@ class EmployeeControllerIntegrationTest {
 
     @Test
     void shouldRequireAuthentication() throws Exception {
-        mockMvc.perform(get("/api/v1/employees"))
+        mockMvc.perform(get("/api/v1/employees/list"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -54,7 +54,7 @@ class EmployeeControllerIntegrationTest {
     void shouldRunEmployeeCrudFlow() throws Exception {
         User savedUser = userRepository.save(employeeUser());
 
-        mockMvc.perform(post("/api/v1/employees")
+        mockMvc.perform(post("/api/v1/employees/registration")
                         .with(user("tester"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request(savedUser.getId(), "MANAGER")))
@@ -66,11 +66,11 @@ class EmployeeControllerIntegrationTest {
 
         Long employeeId = employeeRepository.findAll().getFirst().getId();
 
-        mockMvc.perform(get("/api/v1/employees/{id}", employeeId).with(user("tester")))
+        mockMvc.perform(get("/api/v1/employees/find/{id}", employeeId).with(user("tester")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(employeeId));
 
-        mockMvc.perform(patch("/api/v1/employees/{id}", employeeId)
+        mockMvc.perform(patch("/api/v1/employees/update/{id}", employeeId)
                         .with(user("tester"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -79,7 +79,7 @@ class EmployeeControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.position").value("cashier"));
 
-        mockMvc.perform(delete("/api/v1/employees/{id}", employeeId).with(user("tester")))
+        mockMvc.perform(delete("/api/v1/employees/delete/{id}", employeeId).with(user("tester")))
                 .andExpect(status().isNoContent());
         assertThat(employeeRepository.existsById(employeeId)).isFalse();
         assertThat(userRepository.existsById(savedUser.getId())).isTrue();
@@ -87,7 +87,7 @@ class EmployeeControllerIntegrationTest {
 
     @Test
     void shouldReturnNotFoundWhenUserDoesNotExist() throws Exception {
-        mockMvc.perform(post("/api/v1/employees")
+        mockMvc.perform(post("/api/v1/employees/registration")
                         .with(user("tester"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request(999L, "STOCKER")))
@@ -100,13 +100,13 @@ class EmployeeControllerIntegrationTest {
         User savedUser = userRepository.save(employeeUser());
         String request = request(savedUser.getId(), "MANAGER");
 
-        mockMvc.perform(post("/api/v1/employees")
+        mockMvc.perform(post("/api/v1/employees/registration")
                         .with(user("tester"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(post("/api/v1/employees")
+        mockMvc.perform(post("/api/v1/employees/registration")
                         .with(user("tester"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
@@ -116,7 +116,7 @@ class EmployeeControllerIntegrationTest {
 
     @Test
     void shouldRejectInvalidEmployeeRequest() throws Exception {
-        mockMvc.perform(post("/api/v1/employees")
+        mockMvc.perform(post("/api/v1/employees/registration")
                         .with(user("tester"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))

@@ -108,7 +108,7 @@ class EmployeeServiceTest {
         when(employeeRepository.findById(1L))
                 .thenReturn(Optional.of(employee(1L, Position.STOCKER)));
 
-        EmployeeResponse response = service.findById(1L);
+        EmployeeResponse response = service.findById(1L).orElseThrow();
 
         assertThat(response.id()).isEqualTo(1L);
         assertThat(response.position()).isEqualTo("stocker");
@@ -123,7 +123,7 @@ class EmployeeServiceTest {
         EmployeeResponse response = service.update(
                 1L,
                 new EmployeeUpdateRequest(Position.MANAGER)
-        );
+        ).orElseThrow();
 
         assertThat(employee.getPosition()).isEqualTo(Position.MANAGER);
         assertThat(response.position()).isEqualTo("manager");
@@ -137,7 +137,7 @@ class EmployeeServiceTest {
 
         service.deleteById(1L);
 
-        verify(employeeRepository).delete(employee);
+        verify(employeeRepository).deleteById(1L);
     }
 
     @Test
