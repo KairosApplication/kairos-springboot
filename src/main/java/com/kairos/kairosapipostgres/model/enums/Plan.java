@@ -4,9 +4,13 @@ public enum Plan {
     STANDART("Standart"),
     CORPORATIVO("Corporativo");
 
-    private String valor;
+    private String value;
 
     Plan (String valor) {
-        this.valor = valor;
+        this.value = valor;
+    }
+
+    public String getValue() {
+        return value;
     }
 }
