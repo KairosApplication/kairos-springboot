@@ -32,7 +32,7 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponse save (UserRequest user) throws UserAlreadyExistsException {
+    public UserResponse save (UserRequest user) {
         User userEntity = UserMapper.toEntity(user);
         String cpfUnmasked = CpfFormatter.removeFormatMask (userEntity.getCpf());
         if (repository.existsByCpf(cpfUnmasked) || repository.existsByEmail(userEntity.getEmail())) {
@@ -44,7 +44,7 @@ public class UserService {
     }
 
     @Transactional
-    public Optional<UserResponse> update (Long id, UserUpdateRequest user) throws UserNotFoundException {
+    public Optional<UserResponse> update (Long id, UserUpdateRequest user) {
         User userEntity = repository.findById (id).orElseThrow (() -> new UserNotFoundException ("User not found"));
         String cpfUnmasked = (user.cpf ()) != null ? CpfFormatter.removeFormatMask (user.cpf ()) : userEntity.getCpf();
         String email = (user.email ()) != null ? user.email().trim() : userEntity.getEmail();
