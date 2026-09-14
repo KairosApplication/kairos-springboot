@@ -1,7 +1,7 @@
 package com.kairos.kairosapipostgres.dto.response;
 
-public record CategoryResponse (
+public record CategoryResponse(
         Long id,
-        String categoria
+        String category
 ) {
 }

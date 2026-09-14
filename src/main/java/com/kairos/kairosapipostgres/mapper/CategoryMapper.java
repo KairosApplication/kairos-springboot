@@ -6,19 +6,19 @@ import com.kairos.kairosapipostgres.model.Category;
 
 public final class CategoryMapper {
 
-    private CategoryMapper () {
+    private CategoryMapper() {
     }
 
-    public static Category toEntity (CategoryRequest request) {
-        Category category = new Category ();
-        category.setCategory (request.category ());
+    public static Category toEntity(CategoryRequest request) {
+        Category category = new Category();
+        category.setCategory(request.category());
         return category;
     }
 
-    public static CategoryResponse toResponse (Category category) {
-        return new CategoryResponse (
-                category.getId (),
-                category.getCategory ()
+    public static CategoryResponse toResponse(Category category) {
+        return new CategoryResponse(
+                category.getId(),
+                category.getCategory()
         );
     }
 }
