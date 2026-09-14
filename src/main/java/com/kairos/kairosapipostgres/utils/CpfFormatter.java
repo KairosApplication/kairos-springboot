@@ -14,13 +14,13 @@ public final class CpfFormatter {
     }
 
     public static String addFormatMask(String cpf) {
-        String numeros = removeFormatMask (cpf);
+        String numbers = removeFormatMask (cpf);
 
-        if (numeros == null || numeros.length() != 11) {
+        if (numbers == null || numbers.length() != 11) {
             return null;
         }
 
-        return numeros.replaceFirst(
+        return numbers.replaceFirst(
                 "(\\d{3})(\\d{3})(\\d{3})(\\d{2})",
                 "$1.$2.$3-$4"
         );
