@@ -42,6 +42,7 @@ public class CorsConfig {
         source.registerCorsConfiguration("/api/v1/employees/**", config);
         source.registerCorsConfiguration("/api/v1/customers/**", config);
         source.registerCorsConfiguration("/api/v1/categories/**", config);
+        source.registerCorsConfiguration("/api/v1/products/**", config);
 
         return source;
     }
