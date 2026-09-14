@@ -2,7 +2,7 @@ package com.kairos.kairosapipostgres.dto.response;
 
 public record UserResponse(
         Long id,
-        String nome,
+        String name,
         String email,
         String cpf
 ) {}
