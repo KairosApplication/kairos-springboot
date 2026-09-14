@@ -38,8 +38,10 @@ public class CorsConfig {
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
 
-        source.registerCorsConfiguration("/users/**", config);
+        source.registerCorsConfiguration("/api/v1/users/**", config);
         source.registerCorsConfiguration("/api/v1/employees/**", config);
+        source.registerCorsConfiguration("/api/v1/customers/**", config);
+        source.registerCorsConfiguration("/api/v1/categories/**", config);
 
         return source;
     }

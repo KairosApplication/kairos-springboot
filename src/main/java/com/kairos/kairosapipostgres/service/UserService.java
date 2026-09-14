@@ -12,8 +12,10 @@ import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.repository.UserRepository;
 import com.kairos.kairosapipostgres.utils.CpfFormatter;
 import com.kairos.kairosapipostgres.utils.CpfValidator;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,7 +31,8 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public UserResponse save (UserRequest user) throws UserAlreadyExistsException {
+    @Transactional
+    public UserResponse save (UserRequest user) {
         User userEntity = UserMapper.toEntity(user);
         String cpfUnmasked = CpfFormatter.removeFormatMask (userEntity.getCpf());
         if (repository.existsByCpf(cpfUnmasked) || repository.existsByEmail(userEntity.getEmail())) {
@@ -40,7 +43,8 @@ public class UserService {
         return UserMapper.toResponse(repository.save(userEntity));
     }
 
-    public Optional<UserResponse> update (Long id, UserUpdateRequest user) throws UserNotFoundException {
+    @Transactional
+    public Optional<UserResponse> update (Long id, UserUpdateRequest user) {
         User userEntity = repository.findById (id).orElseThrow (() -> new UserNotFoundException ("User not found"));
         String cpfUnmasked = (user.cpf ()) != null ? CpfFormatter.removeFormatMask (user.cpf ()) : userEntity.getCpf();
         String email = (user.email ()) != null ? user.email().trim() : userEntity.getEmail();
@@ -63,6 +67,7 @@ public class UserService {
         return Optional.of(UserMapper.toResponse(repository.save(userEntity)));
     }
 
+    @Transactional
     public boolean deleteById (Long id) {
         repository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
@@ -70,16 +75,19 @@ public class UserService {
         return true;
     }
 
+    @Transactional (readOnly = true)
     public List<UserResponse> findAll () {
         return repository.findAll ().stream ().map (UserMapper::toResponse).toList ();
     }
 
+    @Transactional (readOnly = true)
     public Optional<UserResponse> findById (Long id) {
         User user = repository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
         return Optional.of(UserMapper.toResponse(user));
     }
 
+    @Transactional (readOnly = true)
     public Optional<UserResponse> findByCpf (String cpf) {
         if (CpfValidator.isValid (cpf)) {
             String cpfSemMascara = CpfFormatter.removeFormatMask (cpf);

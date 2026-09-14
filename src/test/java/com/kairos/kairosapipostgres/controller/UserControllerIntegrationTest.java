@@ -49,7 +49,7 @@ class UserControllerIntegrationTest {
 
     @Test
     void shouldRegisterUserWithoutAuthenticationAndEncodePassword() throws Exception {
-        mockMvc.perform(post("/users/registration")
+        mockMvc.perform(post("/api/v1/users/registration")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRegistration()))
                 .andExpect(status().isCreated())
@@ -68,7 +68,7 @@ class UserControllerIntegrationTest {
 
     @Test
     void shouldRejectInvalidRegistrationWithFieldErrors() throws Exception {
-        mockMvc.perform(post("/users/registration")
+        mockMvc.perform(post("/api/v1/users/registration")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
@@ -80,12 +80,12 @@ class UserControllerIntegrationTest {
 
     @Test
     void shouldReturnConflictForDuplicateUser() throws Exception {
-        mockMvc.perform(post("/users/registration")
+        mockMvc.perform(post("/api/v1/users/registration")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRegistration()))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(post("/users/registration")
+        mockMvc.perform(post("/api/v1/users/registration")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRegistration()))
                 .andExpect(status().isConflict())
@@ -94,23 +94,23 @@ class UserControllerIntegrationTest {
 
     @Test
     void shouldRequireAuthenticationToListUsers() throws Exception {
-        mockMvc.perform(get("/users/list"))
+        mockMvc.perform(get("/api/v1/users/list"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
     void shouldRunAuthenticatedFindUpdateAndDeleteFlow() throws Exception {
-        mockMvc.perform(post("/users/registration")
+        mockMvc.perform(post("/api/v1/users/registration")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRegistration()))
                 .andExpect(status().isCreated());
         Long id = repository.findByEmail("ana@example.com").orElseThrow().getId();
 
-        mockMvc.perform(get("/users/find/{id}", id).with(user("tester")))
+        mockMvc.perform(get("/api/v1/users/find/{id}", id).with(user("tester")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id));
 
-        mockMvc.perform(patch("/users/update/{id}", id)
+        mockMvc.perform(patch("/api/v1/users/update/{id}", id)
                         .with(user("tester"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -124,14 +124,14 @@ class UserControllerIntegrationTest {
                 .andExpect(jsonPath("$.email").value("new@example.com"))
                 .andExpect(jsonPath("$.cpf").value("111.444.777-35"));
 
-        mockMvc.perform(delete("/users/delete/{id}", id).with(user("tester")))
+        mockMvc.perform(delete("/api/v1/users/delete/{id}", id).with(user("tester")))
                 .andExpect(status().isNoContent());
         assertThat(repository.existsById(id)).isFalse();
     }
 
     @Test
     void shouldReturnNotFoundForMissingUser() throws Exception {
-        mockMvc.perform(get("/users/find/{id}", 999L).with(user("tester")))
+        mockMvc.perform(get("/api/v1/users/find/{id}", 999L).with(user("tester")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("User not found"));
     }

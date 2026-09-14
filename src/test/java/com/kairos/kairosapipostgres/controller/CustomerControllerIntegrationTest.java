@@ -2,7 +2,7 @@ package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.User;
 import com.kairos.kairosapipostgres.model.enums.Plan;
-import com.kairos.kairosapipostgres.repository.EmployeeRepository;
+import com.kairos.kairosapipostgres.repository.CustomerRepository;
 import com.kairos.kairosapipostgres.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,7 +19,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -27,114 +26,113 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-class EmployeeControllerIntegrationTest {
+class CustomerControllerIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
-    private EmployeeRepository employeeRepository;
+    private CustomerRepository customerRepository;
 
     @Autowired
     private UserRepository userRepository;
 
     @BeforeEach
     void cleanDatabase() {
-        employeeRepository.deleteAll();
+        customerRepository.deleteAll();
         userRepository.deleteAll();
     }
 
     @Test
     void shouldRequireAuthentication() throws Exception {
-        mockMvc.perform(get("/api/v1/employees/list"))
+        mockMvc.perform(get("/api/v1/customers/list"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void shouldRunEmployeeCrudFlow() throws Exception {
-        User savedUser = userRepository.save(employeeUser());
+    void shouldRunCustomerCrudFlow() throws Exception {
+        User savedUser = userRepository.save(customerUser());
 
-        mockMvc.perform(post("/api/v1/employees/registration")
+        mockMvc.perform(post("/api/v1/customers/registration")
                         .with(user("tester"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(request(savedUser.getId(), "MANAGER")))
+                        .content(request(savedUser.getId())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").isNumber())
-                .andExpect(jsonPath("$.position").value("manager"))
                 .andExpect(jsonPath("$.userId").value(savedUser.getId()))
                 .andExpect(jsonPath("$.userName").value("Davi"));
 
-        Long employeeId = employeeRepository.findAll().getFirst().getId();
+        Long customerId = customerRepository.findAll().getFirst().getId();
 
-        mockMvc.perform(get("/api/v1/employees/find/{id}", employeeId).with(user("tester")))
+        mockMvc.perform(get("/api/v1/customers/list").with(user("tester")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(employeeId));
+                .andExpect(jsonPath("$[0].id").value(customerId));
 
-        mockMvc.perform(patch("/api/v1/employees/update/{id}", employeeId)
-                        .with(user("tester"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"position": "CASHIER"}
-                                """))
+        mockMvc.perform(get("/api/v1/customers/find/{id}", customerId).with(user("tester")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.position").value("cashier"));
+                .andExpect(jsonPath("$.id").value(customerId));
 
-        mockMvc.perform(delete("/api/v1/employees/delete/{id}", employeeId).with(user("tester")))
+        mockMvc.perform(delete("/api/v1/customers/delete/{id}", customerId).with(user("tester")))
                 .andExpect(status().isNoContent());
-        assertThat(employeeRepository.existsById(employeeId)).isFalse();
+        assertThat(customerRepository.existsById(customerId)).isFalse();
         assertThat(userRepository.existsById(savedUser.getId())).isTrue();
     }
 
     @Test
     void shouldReturnNotFoundWhenUserDoesNotExist() throws Exception {
-        mockMvc.perform(post("/api/v1/employees/registration")
+        mockMvc.perform(post("/api/v1/customers/registration")
                         .with(user("tester"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(request(999L, "STOCKER")))
+                        .content(request(999L)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("User not found"));
     }
 
     @Test
-    void shouldReturnConflictWhenUserAlreadyHasEmployee() throws Exception {
-        User savedUser = userRepository.save(employeeUser());
-        String request = request(savedUser.getId(), "MANAGER");
+    void shouldReturnConflictWhenUserAlreadyHasCustomer() throws Exception {
+        User savedUser = userRepository.save(customerUser());
+        String request = request(savedUser.getId());
 
-        mockMvc.perform(post("/api/v1/employees/registration")
+        mockMvc.perform(post("/api/v1/customers/registration")
                         .with(user("tester"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(post("/api/v1/employees/registration")
+        mockMvc.perform(post("/api/v1/customers/registration")
                         .with(user("tester"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("Employee already exists for this user"));
+                .andExpect(jsonPath("$.message").value("Customer already exists for this user"));
     }
 
     @Test
-    void shouldRejectInvalidEmployeeRequest() throws Exception {
-        mockMvc.perform(post("/api/v1/employees/registration")
+    void shouldRejectInvalidCustomerRequest() throws Exception {
+        mockMvc.perform(post("/api/v1/customers/registration")
                         .with(user("tester"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.validationErrors.userId").value("O usuário é obrigatório"))
-                .andExpect(jsonPath("$.validationErrors.position").value("O cargo é obrigatório"));
+                .andExpect(jsonPath("$.validationErrors.userId").value("O usuário é obrigatório"));
     }
 
-    private String request(Long userId, String position) {
+    @Test
+    void shouldReturnNotFoundWhenCustomerDoesNotExist() throws Exception {
+        mockMvc.perform(get("/api/v1/customers/find/{id}", 999L).with(user("tester")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Customer not found"));
+    }
+
+    private String request(Long userId) {
         return """
                 {
-                  "userId": %d,
-                  "position": "%s"
+                  "userId": %d
                 }
-                """.formatted(userId, position);
+                """.formatted(userId);
     }
 
-    private User employeeUser() {
+    private User customerUser() {
         return new User(
                 null,
                 "Davi",

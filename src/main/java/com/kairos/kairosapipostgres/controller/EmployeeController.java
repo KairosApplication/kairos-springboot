@@ -5,51 +5,54 @@ import com.kairos.kairosapipostgres.dto.request.EmployeeUpdateRequest;
 import com.kairos.kairosapipostgres.dto.response.EmployeeResponse;
 import com.kairos.kairosapipostgres.service.EmployeeService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/employees")
 public class EmployeeController {
 
-    @Autowired
-    private EmployeeService service;
+    private final EmployeeService employeeService;
+
+    public EmployeeController (EmployeeService employeeService) {
+        this.employeeService = employeeService;
+    }
 
 
-    @PostMapping
-    public ResponseEntity<EmployeeResponse> create(
+    @PostMapping("/registration")
+    public ResponseEntity<EmployeeResponse> register(
             @Valid @RequestBody EmployeeRequest request
     ) {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(service.save(request));
+                .body(employeeService.save(request));
     }
 
-    @GetMapping
+    @GetMapping("/list")
     public ResponseEntity<List<EmployeeResponse>> list() {
-        return ResponseEntity.ok(service.findAll());
+        return ResponseEntity.ok(employeeService.findAll());
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<EmployeeResponse> findById(@PathVariable Long id) {
-        return ResponseEntity.ok(service.findById(id));
+    @GetMapping("/find/{id}")
+    public ResponseEntity<Optional<EmployeeResponse>> findById(@PathVariable Long id) {
+        return ResponseEntity.ok(employeeService.findById(id));
     }
 
-    @PatchMapping("/{id}")
-    public ResponseEntity<EmployeeResponse> update(
+    @PatchMapping("/update/{id}")
+    public ResponseEntity<Optional<EmployeeResponse>> update(
             @PathVariable Long id,
             @Valid @RequestBody EmployeeUpdateRequest request
     ) {
-        return ResponseEntity.ok(service.update(id, request));
+        return ResponseEntity.ok(employeeService.update(id, request));
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/delete/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        service.deleteById(id);
+        employeeService.deleteById(id);
         return ResponseEntity.noContent().build();
     }
 }
