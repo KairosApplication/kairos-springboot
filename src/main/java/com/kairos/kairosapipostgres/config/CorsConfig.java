@@ -43,6 +43,7 @@ public class CorsConfig {
         source.registerCorsConfiguration("/api/v1/customers/**", config);
         source.registerCorsConfiguration("/api/v1/categories/**", config);
         source.registerCorsConfiguration("/api/v1/products/**", config);
+        source.registerCorsConfiguration("/api/v1/sectors/**", config);
 
         return source;
     }
