@@ -56,13 +56,14 @@ class UserControllerIntegrationTest {
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.name").value("Ana"))
                 .andExpect(jsonPath("$.email").value("ana@example.com"))
-                .andExpect(jsonPath("$.cpf").value("529.982.247-25"))
+                .andExpect(jsonPath("$.cpf").doesNotHaveJsonPath())
                 .andExpect(jsonPath("$.password").doesNotExist());
 
         User saved = repository.findByEmail("ana@example.com").orElseThrow();
         assertThat(saved.getLastName()).isEqualTo("Silva");
         assertThat(saved.getBirthDate()).hasToString("1995-05-20");
         assertThat(saved.getZipCode()).isEqualTo("01310-100");
+        assertThat(saved.getCpf()).isEqualTo("52998224725");
         assertThat(passwordEncoder.matches("secret", saved.getPassword())).isTrue();
     }
 
@@ -108,7 +109,13 @@ class UserControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/users/find/{id}", id).with(user("tester")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(id));
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.cpf").doesNotHaveJsonPath());
+
+        mockMvc.perform(get("/api/v1/users/list").with(user("tester")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(id))
+                .andExpect(jsonPath("$[0].cpf").doesNotHaveJsonPath());
 
         mockMvc.perform(patch("/api/v1/users/update/{id}", id)
                         .with(user("tester"))
@@ -122,7 +129,9 @@ class UserControllerIntegrationTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("new@example.com"))
-                .andExpect(jsonPath("$.cpf").value("111.444.777-35"));
+                .andExpect(jsonPath("$.cpf").doesNotHaveJsonPath());
+
+        assertThat(repository.findById(id).orElseThrow().getCpf()).isEqualTo("11144477735");
 
         mockMvc.perform(delete("/api/v1/users/delete/{id}", id).with(user("tester")))
                 .andExpect(status().isNoContent());
