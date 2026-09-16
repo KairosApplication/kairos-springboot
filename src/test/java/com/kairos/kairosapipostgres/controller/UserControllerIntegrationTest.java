@@ -54,7 +54,7 @@ class UserControllerIntegrationTest {
                         .content(validRegistration()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").isNumber())
-                .andExpect(jsonPath("$.nome").value("Ana"))
+                .andExpect(jsonPath("$.name").value("Ana"))
                 .andExpect(jsonPath("$.email").value("ana@example.com"))
                 .andExpect(jsonPath("$.cpf").value("529.982.247-25"))
                 .andExpect(jsonPath("$.password").doesNotExist());
