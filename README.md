@@ -4,7 +4,7 @@ API REST do projeto Kairos, desenvolvida com Spring Boot e conectada a um banco 
 
 ## Tecnologias
 
-- Java 17 ou superior
+- Java 21
 - Spring Boot 4
 - Spring Data JPA
 - Hibernate
@@ -16,7 +16,7 @@ API REST do projeto Kairos, desenvolvida com Spring Boot e conectada a um banco 
 
 Antes de executar o projeto, tenha instalado:
 
-- JDK 17 ou superior;
+- JDK 21;
 - Maven, caso o projeto não possua Maven Wrapper;
 - acesso ao PostgreSQL hospedado no Aiven.
 
@@ -262,3 +262,65 @@ spring:
 - use apenas valores fictícios no `.env.example`;
 - troque imediatamente qualquer senha que tenha sido exposta;
 - em produção, utilize `show-details: never` no health check para não revelar informações internas.
+
+## Testes e integração contínua
+
+Execute a suíte com H2 e gere a cobertura JaCoCo:
+
+```powershell
+./mvnw.cmd -B -ntp clean verify
+```
+
+O relatório HTML fica em `target/site/jacoco/index.html`, acompanhado do XML para
+integração com outras ferramentas. Inicialmente não há limite mínimo de cobertura.
+
+Para executar a mesma suíte com PostgreSQL 17 isolado via Testcontainers:
+
+```powershell
+./mvnw.cmd -B -ntp -Ppostgres-tests clean verify
+```
+
+Esse perfil exige Docker em execução, baixa a imagem `postgres:17-alpine` e cria
+um banco descartável. Um teste adicional confirma que o banco usado é PostgreSQL,
+não H2. A execução falha se Docker não estiver disponível; não há fallback silencioso.
+Os testes não precisam de `.env` nem acessam o Aiven. No Linux/macOS, substitua
+`./mvnw.cmd` por `bash ./mvnw`.
+
+### Verificação de dependências
+
+O OWASP Dependency-Check substitui o Dependency Review, sem exigir GitHub Code
+Security. Analisa as dependências Maven de produção, inclusive transitivas, e
+falha em vulnerabilidades com CVSS >= 7 ou erros de análise. Não compara apenas
+as dependências alteradas na PR. O analisador OSS Index está desativado porque
+exige credenciais próprias; a análise com NVD permanece habilitada.
+
+```powershell
+./mvnw.cmd -B -ntp -Pdependency-check dependency-check:check
+```
+
+Os relatórios HTML/JSON ficam em `target/dependency-check-report.*`. A base local
+fica em `.dependency-check-data/` (ignorada pelo Git). A primeira atualização pode
+demorar bastante. A verificação não faz parte do `clean verify` local padrão.
+
+Para reduzir limites de requisições, obtenha uma chave gratuita em
+[NVD API](https://nvd.nist.gov/developers/request-an-api-key) e cadastre-a como
+secret `NVD_API_KEY` em **Settings → Secrets and variables → Actions**. Localmente,
+o plugin lê a variável de ambiente de mesmo nome; nunca coloque a chave no POM
+ou em comandos versionados. Sem a chave, o download usa o acesso público, sujeito
+a lentidão e limites. PRs de forks e do Dependabot não recebem os Actions secrets
+comuns; se necessário, configure também um Dependabot secret com esse nome.
+
+### Workflows no GitHub
+
+- `CI`: build/testes H2 com cobertura e uma segunda execução com PostgreSQL.
+- `Dependency check`: atualiza/cacheia a base NVD antes da análise, executa em PRs,
+  pushes na `main`, semanalmente e manualmente. Falhas não são ignoradas.
+- Relatórios de testes, cobertura e vulnerabilidades são publicados como artefatos
+  por 14 dias; relatórios ausentes em falhas de inicialização geram aviso.
+- Dependabot abre PRs semanais para Maven e GitHub Actions a partir da branch padrão.
+  Atualizações Maven minor/patch são agrupadas; majors permanecem separadas.
+
+Se o ruleset da `main` exigir o antigo check `Dependency review`, substitua-o por
+`Dependency vulnerability check` após publicar e validar o novo workflow. Mantenha
+`Build and test` obrigatório e inclua `PostgreSQL integration tests` após validá-lo.
+As configurações de secrets, regras e alertas do GitHub não são alteradas pelo commit.
