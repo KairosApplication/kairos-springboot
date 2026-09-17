@@ -313,14 +313,17 @@ comuns; se necessário, configure também um Dependabot secret com esse nome.
 ### Workflows no GitHub
 
 - `CI`: build/testes H2 com cobertura e uma segunda execução com PostgreSQL.
-- `Dependency check`: atualiza/cacheia a base NVD antes da análise, executa em PRs,
-  pushes na `main`, semanalmente e manualmente. Falhas não são ignoradas.
+- `CodeQL`: analisa o código Java em PRs para a `main`, pushes na `main`,
+  semanalmente e manualmente, publicando o resultado no Code Scanning.
+- `Dependency check`: atualiza/cacheia a base NVD antes da análise e executa em
+  pushes na `main`, semanalmente e manualmente, sem bloquear PRs. Falhas não são
+  ignoradas nessas execuções.
 - Relatórios de testes, cobertura e vulnerabilidades são publicados como artefatos
   por 14 dias; relatórios ausentes em falhas de inicialização geram aviso.
 - Dependabot abre PRs semanais para Maven e GitHub Actions a partir da branch padrão.
   Atualizações Maven minor/patch são agrupadas; majors permanecem separadas.
 
-Se o ruleset da `main` exigir o antigo check `Dependency review`, substitua-o por
-`Dependency vulnerability check` após publicar e validar o novo workflow. Mantenha
-`Build and test` obrigatório e inclua `PostgreSQL integration tests` após validá-lo.
-As configurações de secrets, regras e alertas do GitHub não são alteradas pelo commit.
+No ruleset da `main`, mantenha o resultado do CodeQL obrigatório e não exija
+`Dependency vulnerability check` em PRs. Mantenha `Build and test` obrigatório e
+inclua `PostgreSQL integration tests` após validá-lo. As configurações de secrets,
+regras e alertas do GitHub não são alteradas pelo commit.
