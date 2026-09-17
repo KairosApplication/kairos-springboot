@@ -29,8 +29,7 @@ public final class UserMapper {
         return new UserResponse(
                 user.getId(),
                 user.getName(),
-                user.getEmail(),
-                CpfFormatter.addFormatMask(user.getCpf())
+                user.getEmail()
         );
     }
 }

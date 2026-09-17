@@ -67,7 +67,7 @@ class UserServiceTest {
         assertThat(saved.getPlan()).isEqualTo(Plan.STANDART);
         assertThat(saved.getPassword()).isEqualTo("encoded-secret");
         assertThat(response).isEqualTo(new UserResponse(
-                1L, "Davi", "dias@example.com", "529.982.247-25"
+                1L, "Davi", "dias@example.com"
         ));
     }
 
@@ -164,7 +164,8 @@ class UserServiceTest {
 
         UserResponse response = service.findByCpf("529.982.247-25").orElseThrow();
 
-        assertThat(response.cpf()).isEqualTo("529.982.247-25");
+        assertThat(response.id()).isEqualTo(1L);
+        verify(repository).findByCpf("52998224725");
     }
 
     @Test

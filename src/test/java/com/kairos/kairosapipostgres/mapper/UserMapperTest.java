@@ -46,8 +46,7 @@ class UserMapperTest {
         assertThat(response).isEqualTo(new UserResponse(
                 7L,
                 "Davi",
-                "dias@example.com",
-                "529.982.247-25"
+                "dias@example.com"
         ));
     }
 
