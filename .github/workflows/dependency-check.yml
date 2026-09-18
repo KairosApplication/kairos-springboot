@@ -1,6 +1,13 @@
 name: Dependency check
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - pom.xml
+      - .mvn/**
+      - mvnw
+      - .github/workflows/dependency-check.yml
   push:
     branches: [main]
   schedule:
