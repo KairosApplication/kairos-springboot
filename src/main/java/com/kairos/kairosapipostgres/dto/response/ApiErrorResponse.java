@@ -8,4 +8,7 @@ public record ApiErrorResponse(
         String message,
         Map<String, String> validationErrors
 ) {
+    public ApiErrorResponse {
+        validationErrors = validationErrors == null ? Map.of() : Map.copyOf(validationErrors);
+    }
 }

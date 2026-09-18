@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -74,3 +75,56 @@ jobs:
             target/site/jacoco/
           if-no-files-found: warn
           retention-days: 14
+      - name: Publish coverage summary
+        if: always() && hashFiles('target/site/jacoco/jacoco.xml') != ''
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('target/site/jacoco/jacoco.xml', 'utf8');
+            const counters = [...report.matchAll(/<counter type="LINE" missed="(\d+)" covered="(\d+)"\/>/g)];
+            if (counters.length === 0) {
+              core.setFailed('JaCoCo line coverage counter was not found.');
+              return;
+            }
+
+            const [, missedValue, coveredValue] = counters.at(-1);
+            const missed = Number(missedValue);
+            const covered = Number(coveredValue);
+            const percentage = (covered * 100 / (covered + missed)).toFixed(2);
+            const marker = '<!-- kairos-jacoco-coverage -->';
+            const body = `${marker}\n## JaCoCo coverage\n\n**${percentage}%** line coverage (${covered} covered, ${missed} missed). Minimum required: **90%**.`;
+
+            await core.summary.addRaw(body.replace(marker, '')).write();
+
+            if (!context.payload.pull_request) return;
+
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                per_page: 100
+              });
+              const previous = comments.find(comment =>
+                comment.user?.type === 'Bot' && comment.body?.includes(marker)
+              );
+
+              if (previous) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: previous.id,
+                  body
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body
+                });
+              }
+            } catch (error) {
+              core.warning(`Coverage comment could not be published: ${error.message}`);
+            }

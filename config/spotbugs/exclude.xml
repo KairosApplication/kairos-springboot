@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!-- Constructor injection intentionally retains Spring-managed service references. -->
+    <Match>
+        <Class name="~com\.kairos\.kairosapipostgres\.controller\..*"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+</FindBugsFilter>

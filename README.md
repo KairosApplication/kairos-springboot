@@ -272,7 +272,13 @@ Execute a suíte com H2 e gere a cobertura JaCoCo:
 ```
 
 O relatório HTML fica em `target/site/jacoco/index.html`, acompanhado do XML para
-integração com outras ferramentas. Inicialmente não há limite mínimo de cobertura.
+integração com outras ferramentas. O build exige pelo menos 90% de cobertura de
+linhas; em pull requests, o workflow também publica o resultado no resumo da
+execução e atualiza um comentário da automação quando o token possui permissão.
+
+O mesmo `verify` executa Checkstyle e SpotBugs. As regras locais do Checkstyle
+ficam em `config/checkstyle/checkstyle.xml`; qualquer violação ou achado SpotBugs
+de severidade média ou superior falha o build.
 
 Para executar a mesma suíte com PostgreSQL 17 isolado via Testcontainers:
 
@@ -316,14 +322,17 @@ comuns; se necessário, configure também um Dependabot secret com esse nome.
 - `CodeQL`: analisa o código Java em PRs para a `main`, pushes na `main`,
   semanalmente e manualmente, publicando o resultado no Code Scanning.
 - `Dependency check`: atualiza/cacheia a base NVD antes da análise e executa em
-  pushes na `main`, semanalmente e manualmente, sem bloquear PRs. Falhas não são
-  ignoradas nessas execuções.
+  PRs que alterem o build Maven, pushes na `main`, semanalmente e manualmente.
+  Falhas não são ignoradas nessas execuções.
+- `Secret scan`: executa Gitleaks sobre o histórico em PRs para a `main`, pushes
+  na `main` e manualmente, ocultando qualquer segredo encontrado nos logs.
 - Relatórios de testes, cobertura e vulnerabilidades são publicados como artefatos
   por 14 dias; relatórios ausentes em falhas de inicialização geram aviso.
-- Dependabot abre PRs semanais para Maven e GitHub Actions a partir da branch padrão.
-  Atualizações Maven minor/patch são agrupadas; majors permanecem separadas.
+- Dependabot abre PRs semanais somente para GitHub Actions a partir da branch
+  padrão. As dependências Maven permanecem sob atualização manual.
 
-No ruleset da `main`, mantenha o resultado do CodeQL obrigatório e não exija
-`Dependency vulnerability check` em PRs. Mantenha `Build and test` obrigatório e
-inclua `PostgreSQL integration tests` após validá-lo. As configurações de secrets,
-regras e alertas do GitHub não são alteradas pelo commit.
+No ruleset da `main`, exija `Analyze Java`, `Build and test`,
+`PostgreSQL integration tests` e `Secret scan`. Não exija
+`Dependency vulnerability check`, pois esse workflow roda apenas quando o build
+Maven é alterado. Rulesets e o secret scanning nativo são configurações do
+repositório no GitHub e não são representados integralmente por estes arquivos.
