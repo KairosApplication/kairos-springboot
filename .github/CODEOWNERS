@@ -1,0 +1,8 @@
+# Default ownership for the repository.
+* @pjz3650
+
+# Security-sensitive application and automation changes.
+/src/main/java/com/kairos/kairosapipostgres/config/ @pjz3650
+/.github/ @pjz3650
+/pom.xml @pjz3650
+/src/main/resources/ @pjz3650
