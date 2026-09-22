@@ -2,10 +2,12 @@ package com.kairos.kairosapipostgres.service;
 
 import com.kairos.kairosapipostgres.dto.request.EmployeeRequest;
 import com.kairos.kairosapipostgres.dto.request.EmployeeUpdateRequest;
+import com.kairos.kairosapipostgres.dto.request.UserRequest;
 import com.kairos.kairosapipostgres.dto.response.EmployeeResponse;
-import com.kairos.kairosapipostgres.exception.EmployeeAlreadyExistsException;
+import com.kairos.kairosapipostgres.dto.response.UserResponse;
 import com.kairos.kairosapipostgres.exception.EmployeeNotFoundException;
-import com.kairos.kairosapipostgres.exception.UserNotFoundException;
+import com.kairos.kairosapipostgres.exception.InvalidEmployeePositionException;
+import com.kairos.kairosapipostgres.exception.UserAlreadyExistsException;
 import com.kairos.kairosapipostgres.model.Employee;
 import com.kairos.kairosapipostgres.model.User;
 import com.kairos.kairosapipostgres.model.enums.Plan;
@@ -25,6 +27,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,54 +41,57 @@ class EmployeeServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private UserService userService;
+
     private EmployeeService service;
 
     @BeforeEach
     void setUp() {
-        service = new EmployeeService(employeeRepository, userRepository);
+        service = new EmployeeService(employeeRepository, userRepository, userService);
     }
 
     @Test
-    void shouldCreateEmployeeForExistingUser() {
+    void shouldCreateUserAndEmployee() {
+        UserRequest userRequest = userRequest();
         User user = user(10L);
+        when(userService.save(userRequest)).thenReturn(new UserResponse(10L, "Davi", "dias@example.com"));
         when(userRepository.findById(10L)).thenReturn(Optional.of(user));
-        when(employeeRepository.existsByUserId(10L)).thenReturn(false);
         when(employeeRepository.save(any(Employee.class))).thenAnswer(invocation -> {
             Employee saved = invocation.getArgument(0);
             saved.setId(1L);
             return saved;
         });
 
-        EmployeeResponse response = service.save(new EmployeeRequest(10L, Position.MANAGER));
+        EmployeeResponse response = service.save(new EmployeeRequest(userRequest, Position.CASHIER));
 
         assertThat(response).isEqualTo(new EmployeeResponse(
                 1L,
-                "manager",
+                "cashier",
                 10L,
                 "Davi"
         ));
-        verify(employeeRepository).save(any(Employee.class));
+        verify(userService).save(userRequest);
+        verify(employeeRepository).save(argThat(saved ->
+                saved.getPosition() == Position.CASHIER && saved.getUser() == user));
     }
 
     @Test
-    void shouldRejectEmployeeWhenUserDoesNotExist() {
-        when(userRepository.findById(99L)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.save(new EmployeeRequest(99L, Position.STOCKER)))
-                .isInstanceOf(UserNotFoundException.class)
-                .hasMessage("User not found");
+    void shouldRejectManagerRegistrationBeforeCreatingUser() {
+        assertThatThrownBy(() -> service.save(new EmployeeRequest(userRequest(), Position.MANAGER)))
+                .isInstanceOf(InvalidEmployeePositionException.class)
+                .hasMessage("O cargo deve ser CASHIER ou STOCKER");
+        verify(userService, never()).save(any());
         verify(employeeRepository, never()).save(any());
     }
 
     @Test
-    void shouldRejectSecondEmployeeForSameUser() {
-        User user = user(10L);
-        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
-        when(employeeRepository.existsByUserId(10L)).thenReturn(true);
+    void shouldNotCreateEmployeeWhenUserAlreadyExists() {
+        UserRequest userRequest = userRequest();
+        when(userService.save(userRequest)).thenThrow(new UserAlreadyExistsException("User already exists"));
 
-        assertThatThrownBy(() -> service.save(new EmployeeRequest(10L, Position.CASHIER)))
-                .isInstanceOf(EmployeeAlreadyExistsException.class)
-                .hasMessage("Employee already exists for this user");
+        assertThatThrownBy(() -> service.save(new EmployeeRequest(userRequest, Position.STOCKER)))
+                .isInstanceOf(UserAlreadyExistsException.class);
         verify(employeeRepository, never()).save(any());
     }
 
@@ -122,12 +128,20 @@ class EmployeeServiceTest {
 
         EmployeeResponse response = service.update(
                 1L,
-                new EmployeeUpdateRequest(Position.MANAGER)
+                new EmployeeUpdateRequest(Position.STOCKER)
         ).orElseThrow();
 
-        assertThat(employee.getPosition()).isEqualTo(Position.MANAGER);
-        assertThat(response.position()).isEqualTo("manager");
+        assertThat(employee.getPosition()).isEqualTo(Position.STOCKER);
+        assertThat(response.position()).isEqualTo("stocker");
         verify(employeeRepository).save(employee);
+    }
+
+    @Test
+    void shouldRejectManagerPromotionWithoutChangingEmployee() {
+        assertThatThrownBy(() -> service.update(1L, new EmployeeUpdateRequest(Position.MANAGER)))
+                .isInstanceOf(InvalidEmployeePositionException.class)
+                .hasMessage("O cargo deve ser CASHIER ou STOCKER");
+        verify(employeeRepository, never()).save(any());
     }
 
     @Test
@@ -151,6 +165,11 @@ class EmployeeServiceTest {
 
     private Employee employee(Long id, Position position) {
         return new Employee(id, position, user(10L));
+    }
+
+    private UserRequest userRequest() {
+        return new UserRequest("Davi", "Dias", LocalDate.of(2000, 2, 12),
+                "password", "01310-100", Plan.STANDART, "dias@example.com", "52998224725");
     }
 
     private User user(Long id) {

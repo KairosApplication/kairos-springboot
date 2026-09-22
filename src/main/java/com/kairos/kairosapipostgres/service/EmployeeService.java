@@ -3,12 +3,14 @@ package com.kairos.kairosapipostgres.service;
 import com.kairos.kairosapipostgres.dto.request.EmployeeRequest;
 import com.kairos.kairosapipostgres.dto.request.EmployeeUpdateRequest;
 import com.kairos.kairosapipostgres.dto.response.EmployeeResponse;
-import com.kairos.kairosapipostgres.exception.EmployeeAlreadyExistsException;
+import com.kairos.kairosapipostgres.dto.response.UserResponse;
 import com.kairos.kairosapipostgres.exception.EmployeeNotFoundException;
+import com.kairos.kairosapipostgres.exception.InvalidEmployeePositionException;
 import com.kairos.kairosapipostgres.exception.UserNotFoundException;
 import com.kairos.kairosapipostgres.mapper.EmployeeMapper;
 import com.kairos.kairosapipostgres.model.Employee;
 import com.kairos.kairosapipostgres.model.User;
+import com.kairos.kairosapipostgres.model.enums.Position;
 import com.kairos.kairosapipostgres.repository.EmployeeRepository;
 import com.kairos.kairosapipostgres.repository.UserRepository;
 import org.springframework.stereotype.Service;
@@ -22,22 +24,29 @@ public class EmployeeService {
 
     private final EmployeeRepository repository;
     private final UserRepository userRepository;
+    private final UserService userService;
 
-    public EmployeeService (EmployeeRepository repository, UserRepository userRepository) {
+    public EmployeeService(
+            EmployeeRepository repository,
+            UserRepository userRepository,
+            UserService userService
+    ) {
         this.repository = repository;
         this.userRepository = userRepository;
+        this.userService = userService;
     }
 
     @Transactional
     public EmployeeResponse save(EmployeeRequest request) {
-        User user = userRepository.findById(request.userId())
+        validateRegistrablePosition(request.position());
+
+        UserResponse createdUser = userService.save(request.user());
+
+        User user = userRepository.findById(createdUser.id())
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
 
-        if (repository.existsByUserId(request.userId())) {
-            throw new EmployeeAlreadyExistsException("Employee already exists for this user");
-        }
-
         Employee employee = EmployeeMapper.toEntity(request, user);
+
         return EmployeeMapper.toResponse(repository.save(employee));
     }
 
@@ -57,10 +66,17 @@ public class EmployeeService {
 
     @Transactional
     public Optional<EmployeeResponse> update(Long id, EmployeeUpdateRequest request) {
+        validateRegistrablePosition(request.position());
         Employee employee = repository.findById(id)
                 .orElseThrow(() -> new EmployeeNotFoundException("Employee not found"));
         employee.setPosition(request.position());
         return Optional.of(EmployeeMapper.toResponse(repository.save(employee)));
+    }
+
+    private void validateRegistrablePosition(Position position) {
+        if (position != Position.CASHIER && position != Position.STOCKER) {
+            throw new InvalidEmployeePositionException("O cargo deve ser CASHIER ou STOCKER");
+        }
     }
 
     @Transactional

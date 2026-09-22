@@ -1,7 +1,6 @@
 package com.kairos.kairosapipostgres.controller;
 
-import com.kairos.kairosapipostgres.model.User;
-import com.kairos.kairosapipostgres.model.enums.Plan;
+import com.kairos.kairosapipostgres.model.enums.Position;
 import com.kairos.kairosapipostgres.repository.EmployeeRepository;
 import com.kairos.kairosapipostgres.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,16 +9,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -29,14 +26,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class EmployeeControllerIntegrationTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private EmployeeRepository employeeRepository;
-
-    @Autowired
-    private UserRepository userRepository;
+    @Autowired private MockMvc mockMvc;
+    @Autowired private EmployeeRepository employeeRepository;
+    @Autowired private UserRepository userRepository;
+    @Autowired private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void cleanDatabase() {
@@ -45,106 +38,113 @@ class EmployeeControllerIntegrationTest {
     }
 
     @Test
-    void shouldRequireAuthentication() throws Exception {
+    void shouldRequireManagerForRegistration() throws Exception {
         mockMvc.perform(get("/api/v1/employees/list"))
                 .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/v1/employees/registration")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request("CASHIER")))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/v1/employees/registration")
+                        .with(user("customer").roles("CUSTOMER"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request("CASHIER")))
+                .andExpect(status().isForbidden());
     }
 
     @Test
-    void shouldRunEmployeeCrudFlow() throws Exception {
-        User savedUser = userRepository.save(employeeUser());
-
+    void shouldCreateUserAndEmployeeInOneRequest() throws Exception {
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("tester"))
+                        .with(user("manager").roles("MANAGER"))
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(request(savedUser.getId(), "MANAGER")))
+                        .content(request("CASHIER")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").isNumber())
-                .andExpect(jsonPath("$.position").value("manager"))
-                .andExpect(jsonPath("$.userId").value(savedUser.getId()))
+                .andExpect(jsonPath("$.position").value("cashier"))
+                .andExpect(jsonPath("$.userId").isNumber())
                 .andExpect(jsonPath("$.userName").value("Davi"));
 
-        Long employeeId = employeeRepository.findAll().getFirst().getId();
-
-        mockMvc.perform(get("/api/v1/employees/find/{id}", employeeId).with(user("tester")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(employeeId));
-
-        mockMvc.perform(patch("/api/v1/employees/update/{id}", employeeId)
-                        .with(user("tester"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"position": "CASHIER"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.position").value("cashier"));
-
-        mockMvc.perform(delete("/api/v1/employees/delete/{id}", employeeId).with(user("tester")))
-                .andExpect(status().isNoContent());
-        assertThat(employeeRepository.existsById(employeeId)).isFalse();
-        assertThat(userRepository.existsById(savedUser.getId())).isTrue();
+        var savedUser = userRepository.findByEmail("dias@example.com").orElseThrow();
+        var savedEmployee = employeeRepository.findByUserId(savedUser.getId()).orElseThrow();
+        assertThat(savedEmployee.getPosition()).isEqualTo(Position.CASHIER);
+        assertThat(passwordEncoder.matches("password-123", savedUser.getPassword())).isTrue();
     }
 
     @Test
-    void shouldReturnNotFoundWhenUserDoesNotExist() throws Exception {
+    void shouldReturnConflictForDuplicateUser() throws Exception {
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("tester"))
+                        .with(user("manager").roles("MANAGER"))
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(request(999L, "STOCKER")))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("User not found"));
-    }
-
-    @Test
-    void shouldReturnConflictWhenUserAlreadyHasEmployee() throws Exception {
-        User savedUser = userRepository.save(employeeUser());
-        String request = request(savedUser.getId(), "MANAGER");
-
-        mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("tester"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(request))
+                        .content(request("STOCKER")))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("tester"))
+                        .with(user("manager").roles("MANAGER"))
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(request))
+                        .content(request("STOCKER")))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("Employee already exists for this user"));
+                .andExpect(jsonPath("$.message").value("User already exists"));
+
+        assertThat(userRepository.count()).isEqualTo(1);
+        assertThat(employeeRepository.count()).isEqualTo(1);
     }
 
     @Test
-    void shouldRejectInvalidEmployeeRequest() throws Exception {
+    void shouldRejectManagerPositionWithoutCreatingUser() throws Exception {
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("tester"))
+                        .with(user("manager").roles("MANAGER"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request("MANAGER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("O cargo deve ser CASHIER ou STOCKER"));
+
+        assertThat(userRepository.count()).isZero();
+        assertThat(employeeRepository.count()).isZero();
+    }
+
+    @Test
+    void shouldValidateNestedUser() throws Exception {
+        mockMvc.perform(post("/api/v1/employees/registration")
+                        .with(user("manager").roles("MANAGER"))
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.validationErrors.userId").value("O usuário é obrigatório"))
+                .andExpect(jsonPath("$.validationErrors.user").value("O usuário é obrigatório"))
                 .andExpect(jsonPath("$.validationErrors.position").value("O cargo é obrigatório"));
+
+        mockMvc.perform(post("/api/v1/employees/registration")
+                        .with(user("manager").roles("MANAGER"))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request("CASHIER").replace("dias@example.com", "invalid-email")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$['validationErrors']['user.email']").value("E-mail inválido"));
     }
 
-    private String request(Long userId, String position) {
+    private String request(String position) {
         return """
                 {
-                  "userId": %d,
+                  "user": {
+                    "name": "Davi",
+                    "lastName": "Dias",
+                    "birthDate": "2000-02-12",
+                    "password": "password-123",
+                    "zipCode": "01310-100",
+                    "plan": "STANDART",
+                    "email": "dias@example.com",
+                    "cpf": "52998224725"
+                  },
                   "position": "%s"
                 }
-                """.formatted(userId, position);
-    }
-
-    private User employeeUser() {
-        return new User(
-                null,
-                "Davi",
-                "Dias",
-                LocalDate.of(2000, 2, 12),
-                "52998224725",
-                "dias@example.com",
-                "encoded-password",
-                "01310-100",
-                Plan.STANDART
-        );
+                """.formatted(position);
     }
 }
