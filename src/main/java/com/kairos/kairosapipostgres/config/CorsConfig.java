@@ -30,7 +30,8 @@ public class CorsConfig {
 
         config.setAllowedHeaders(List.of(
                 "Authorization",
-                "Content-Type"
+                "Content-Type",
+                "X-CSRF-TOKEN"
         ));
 
         config.setAllowCredentials(true);
@@ -44,6 +45,7 @@ public class CorsConfig {
         source.registerCorsConfiguration("/api/v1/categories/**", config);
         source.registerCorsConfiguration("/api/v1/products/**", config);
         source.registerCorsConfiguration("/api/v1/sectors/**", config);
+        source.registerCorsConfiguration("/api/v1/auth/**", config);
 
         return source;
     }
