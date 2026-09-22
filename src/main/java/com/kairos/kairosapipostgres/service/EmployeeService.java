@@ -75,7 +75,7 @@ public class EmployeeService {
 
     private void validateRegistrablePosition(Position position) {
         if (position != Position.CASHIER && position != Position.STOCKER) {
-            throw new InvalidEmployeePositionException("O cargo deve ser CASHIER ou STOCKER");
+            throw new InvalidEmployeePositionException("The employee position must be CASHIER or STOCKER");
         }
     }
 
