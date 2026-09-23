@@ -80,7 +80,7 @@ class EmployeeServiceTest {
     void shouldRejectManagerRegistrationBeforeCreatingUser() {
         assertThatThrownBy(() -> service.save(new EmployeeRequest(userRequest(), Position.MANAGER)))
                 .isInstanceOf(InvalidEmployeePositionException.class)
-                .hasMessage("O cargo deve ser CASHIER ou STOCKER");
+                .hasMessage("The employee position must be CASHIER or STOCKER");
         verify(userService, never()).save(any());
         verify(employeeRepository, never()).save(any());
     }
@@ -140,7 +140,7 @@ class EmployeeServiceTest {
     void shouldRejectManagerPromotionWithoutChangingEmployee() {
         assertThatThrownBy(() -> service.update(1L, new EmployeeUpdateRequest(Position.MANAGER)))
                 .isInstanceOf(InvalidEmployeePositionException.class)
-                .hasMessage("O cargo deve ser CASHIER ou STOCKER");
+                .hasMessage("The employee position must be CASHIER or STOCKER");
         verify(employeeRepository, never()).save(any());
     }
 
