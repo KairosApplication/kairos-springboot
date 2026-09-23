@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -55,7 +56,7 @@ class EmployeeControllerIntegrationTest {
         User savedUser = userRepository.save(employeeUser());
 
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("tester"))
+                        .with(user("tester").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request(savedUser.getId(), "MANAGER")))
                 .andExpect(status().isCreated())
@@ -66,12 +67,12 @@ class EmployeeControllerIntegrationTest {
 
         Long employeeId = employeeRepository.findAll().getFirst().getId();
 
-        mockMvc.perform(get("/api/v1/employees/find/{id}", employeeId).with(user("tester")))
+        mockMvc.perform(get("/api/v1/employees/find/{id}", employeeId).with(user("tester").roles("MANAGER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(employeeId));
 
         mockMvc.perform(patch("/api/v1/employees/update/{id}", employeeId)
-                        .with(user("tester"))
+                        .with(user("tester").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"position": "CASHIER"}
@@ -79,7 +80,8 @@ class EmployeeControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.position").value("cashier"));
 
-        mockMvc.perform(delete("/api/v1/employees/delete/{id}", employeeId).with(user("tester")))
+        mockMvc.perform(delete("/api/v1/employees/delete/{id}", employeeId)
+                        .with(user("tester").roles("MANAGER")).with(csrf()))
                 .andExpect(status().isNoContent());
         assertThat(employeeRepository.existsById(employeeId)).isFalse();
         assertThat(userRepository.existsById(savedUser.getId())).isTrue();
@@ -88,7 +90,7 @@ class EmployeeControllerIntegrationTest {
     @Test
     void shouldReturnNotFoundWhenUserDoesNotExist() throws Exception {
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("tester"))
+                        .with(user("tester").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request(999L, "STOCKER")))
                 .andExpect(status().isNotFound())
@@ -101,13 +103,13 @@ class EmployeeControllerIntegrationTest {
         String request = request(savedUser.getId(), "MANAGER");
 
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("tester"))
+                        .with(user("tester").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("tester"))
+                        .with(user("tester").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isConflict())
@@ -117,7 +119,7 @@ class EmployeeControllerIntegrationTest {
     @Test
     void shouldRejectInvalidEmployeeRequest() throws Exception {
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("tester"))
+                        .with(user("tester").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())

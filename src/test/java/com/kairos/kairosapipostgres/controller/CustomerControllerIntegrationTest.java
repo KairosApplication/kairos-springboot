@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -54,7 +55,7 @@ class CustomerControllerIntegrationTest {
         User savedUser = userRepository.save(customerUser());
 
         mockMvc.perform(post("/api/v1/customers/registration")
-                        .with(user("tester"))
+                        .with(user("tester")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request(savedUser.getId())))
                 .andExpect(status().isCreated())
@@ -72,7 +73,7 @@ class CustomerControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(customerId));
 
-        mockMvc.perform(delete("/api/v1/customers/delete/{id}", customerId).with(user("tester")))
+        mockMvc.perform(delete("/api/v1/customers/delete/{id}", customerId).with(user("tester")).with(csrf()))
                 .andExpect(status().isNoContent());
         assertThat(customerRepository.existsById(customerId)).isFalse();
         assertThat(userRepository.existsById(savedUser.getId())).isTrue();
@@ -81,7 +82,7 @@ class CustomerControllerIntegrationTest {
     @Test
     void shouldReturnNotFoundWhenUserDoesNotExist() throws Exception {
         mockMvc.perform(post("/api/v1/customers/registration")
-                        .with(user("tester"))
+                        .with(user("tester")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request(999L)))
                 .andExpect(status().isNotFound())
@@ -94,13 +95,13 @@ class CustomerControllerIntegrationTest {
         String request = request(savedUser.getId());
 
         mockMvc.perform(post("/api/v1/customers/registration")
-                        .with(user("tester"))
+                        .with(user("tester")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/v1/customers/registration")
-                        .with(user("tester"))
+                        .with(user("tester")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isConflict())
@@ -110,7 +111,7 @@ class CustomerControllerIntegrationTest {
     @Test
     void shouldRejectInvalidCustomerRequest() throws Exception {
         mockMvc.perform(post("/api/v1/customers/registration")
-                        .with(user("tester"))
+                        .with(user("tester")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
