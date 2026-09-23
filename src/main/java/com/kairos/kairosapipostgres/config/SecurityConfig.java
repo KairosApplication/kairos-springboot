@@ -31,38 +31,26 @@ public class SecurityConfig {
                 )
 
                 .authorizeHttpRequests(auth -> auth
-
-                        .requestMatchers(HttpMethod.GET, "/api/v1/auth/login").permitAll()
-
                         .requestMatchers(
-                                HttpMethod.POST,
-                                "/api/v1/auth/login"
+                                "/health",
+                                "/v3/api-docs/**",
+                                "/swagger-ui.html",
+                                "/swagger-ui/**"
                         ).permitAll()
-
+                        .requestMatchers(HttpMethod.POST, "/api/v1/users/registration").permitAll()
+                        .requestMatchers("/api/v1/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/me").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").authenticated()
 
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/api/v1/products/**"
-                        ).hasRole("CUSTOMER")
-
-                        .requestMatchers(
-                                HttpMethod.POST,
-                                "/api/v1/employees/registration"
-                        ).hasRole("MANAGER")
-
-                        .requestMatchers (
-                                HttpMethod.GET,
-                                "/api/v1/employees/**"
-                        )
+                        .requestMatchers(HttpMethod.GET, "/api/v1/products/**")
+                        .hasRole("CUSTOMER")
+                        .requestMatchers("/api/v1/employees/**")
                         .hasRole("MANAGER")
 
-                        .requestMatchers (
-                                HttpMethod.PATCH,
-                                "/api/v1/employees/update/*"
-                        )
-                        .hasRole("MANAGER")
+                        .requestMatchers("/api/v1/categories/**").authenticated()
+                        .requestMatchers("/api/v1/sectors/**").authenticated()
+                        .requestMatchers("/api/v1/customers/**").authenticated()
+                        .requestMatchers("/api/v1/users/**").authenticated()
 
                         .anyRequest().denyAll()
                 )
