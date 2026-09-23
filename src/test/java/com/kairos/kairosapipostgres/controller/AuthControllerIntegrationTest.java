@@ -70,7 +70,7 @@ class AuthControllerIntegrationTest {
         mvc.perform(post("/api/v1/employees/registration").session(refreshed.session())
                 .header(refreshed.headerName(), refreshed.token())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(employeeRequest("newhire@example.com")))
+                .content(employeeRequest(999L)))
                 .andExpect(status().isForbidden());
     }
 
@@ -105,6 +105,7 @@ class AuthControllerIntegrationTest {
     void shouldAuthorizeManagerToRegisterEmployeeButNotReadProducts() throws Exception {
         User manager = createUser("manager@example.com");
         employees.saveAndFlush(new Employee(null, Position.MANAGER, manager));
+        User employee = createUser("employee@example.com");
         CsrfSession session = login(manager.getEmail());
 
         mvc.perform(get("/api/v1/products/list").session(session.session()))
@@ -112,9 +113,10 @@ class AuthControllerIntegrationTest {
         mvc.perform(post("/api/v1/employees/registration").session(session.session())
                 .header(session.headerName(), session.token())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(employeeRequest("employee@example.com")))
+                .content(employeeRequest(employee.getId())))
                 .andExpect(status().isCreated());
-        assertThat(users.findByEmail("employee@example.com")).isPresent();
+        assertThat(employees.count()).isEqualTo(2);
+        assertThat(users.findByEmail("employee@example.com")).contains(employee);
     }
 
     @Test
@@ -210,22 +212,13 @@ class AuthControllerIntegrationTest {
                 "52998224725", email, passwordEncoder.encode(PASSWORD), "01310-100", Plan.STANDART));
     }
 
-    private String employeeRequest(String email) {
+    private String employeeRequest(Long userId) {
         return """
                 {
-                  "user": {
-                    "name": "Davi",
-                    "lastName": "Dias",
-                    "birthDate": "2000-02-12",
-                    "password": "password-123",
-                    "zipCode": "01310-100",
-                    "plan": "STANDART",
-                    "email": "%s",
-                    "cpf": "11144477735"
-                  },
+                  "userId": %d,
                   "position": "CASHIER"
                 }
-                """.formatted(email);
+                """.formatted(userId);
     }
 
     private record CsrfSession(MockHttpSession session, String headerName, String token) {

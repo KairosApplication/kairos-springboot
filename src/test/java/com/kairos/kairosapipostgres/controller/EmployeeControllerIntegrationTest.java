@@ -16,8 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -38,29 +37,25 @@ class EmployeeControllerIntegrationTest {
     }
 
     @Test
-    void shouldRequireManagerForRegistration() throws Exception {
+    void shouldRequireManagerForEmployeeRoutes() throws Exception {
         mockMvc.perform(get("/api/v1/employees/list"))
                 .andExpect(status().isUnauthorized());
-
         mockMvc.perform(post("/api/v1/employees/registration")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request("CASHIER")))
                 .andExpect(status().isUnauthorized());
-
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("customer").roles("CUSTOMER"))
-                        .with(csrf())
+                        .with(user("customer").roles("CUSTOMER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request("CASHIER")))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void shouldCreateUserAndEmployeeInOneRequest() throws Exception {
+    void shouldCreateUserAndRunEmployeeCrudFlow() throws Exception {
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("manager").roles("MANAGER"))
-                        .with(csrf())
+                        .with(user("manager").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request("CASHIER")))
                 .andExpect(status().isCreated())
@@ -73,20 +68,34 @@ class EmployeeControllerIntegrationTest {
         var savedEmployee = employeeRepository.findByUserId(savedUser.getId()).orElseThrow();
         assertThat(savedEmployee.getPosition()).isEqualTo(Position.CASHIER);
         assertThat(passwordEncoder.matches("password-123", savedUser.getPassword())).isTrue();
+
+        mockMvc.perform(get("/api/v1/employees/find/{id}", savedEmployee.getId())
+                        .with(user("manager").roles("MANAGER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(savedEmployee.getId()));
+        mockMvc.perform(patch("/api/v1/employees/update/{id}", savedEmployee.getId())
+                        .with(user("manager").roles("MANAGER")).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"position\":\"STOCKER\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.position").value("stocker"));
+        mockMvc.perform(delete("/api/v1/employees/delete/{id}", savedEmployee.getId())
+                        .with(user("manager").roles("MANAGER")).with(csrf()))
+                .andExpect(status().isNoContent());
+
+        assertThat(employeeRepository.existsById(savedEmployee.getId())).isFalse();
+        assertThat(userRepository.existsById(savedUser.getId())).isTrue();
     }
 
     @Test
     void shouldReturnConflictForDuplicateUser() throws Exception {
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("manager").roles("MANAGER"))
-                        .with(csrf())
+                        .with(user("manager").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request("STOCKER")))
                 .andExpect(status().isCreated());
-
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("manager").roles("MANAGER"))
-                        .with(csrf())
+                        .with(user("manager").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request("STOCKER")))
                 .andExpect(status().isConflict())
@@ -99,12 +108,12 @@ class EmployeeControllerIntegrationTest {
     @Test
     void shouldRejectManagerPositionWithoutCreatingUser() throws Exception {
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("manager").roles("MANAGER"))
-                        .with(csrf())
+                        .with(user("manager").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request("MANAGER")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("O cargo deve ser CASHIER ou STOCKER"));
+                .andExpect(jsonPath("$.message")
+                        .value("The employee position must be CASHIER or STOCKER"));
 
         assertThat(userRepository.count()).isZero();
         assertThat(employeeRepository.count()).isZero();
@@ -113,17 +122,14 @@ class EmployeeControllerIntegrationTest {
     @Test
     void shouldValidateNestedUser() throws Exception {
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("manager").roles("MANAGER"))
-                        .with(csrf())
+                        .with(user("manager").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.validationErrors.user").value("O usuário é obrigatório"))
                 .andExpect(jsonPath("$.validationErrors.position").value("O cargo é obrigatório"));
-
         mockMvc.perform(post("/api/v1/employees/registration")
-                        .with(user("manager").roles("MANAGER"))
-                        .with(csrf())
+                        .with(user("manager").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request("CASHIER").replace("dias@example.com", "invalid-email")))
                 .andExpect(status().isBadRequest())
