@@ -93,6 +93,17 @@ public class GlobalExceptionHandler {
         return response(HttpStatus.BAD_REQUEST, "Invalid request", errors);
     }
 
+    @ExceptionHandler(InvalidEmployeePositionException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidEmployeePosition(
+            InvalidEmployeePositionException exception
+    ) {
+        return response(
+                HttpStatus.BAD_REQUEST,
+                exception.getMessage(),
+                Map.of()
+        );
+    }
+
     private ResponseEntity<ApiErrorResponse> response(
             HttpStatus status,
             String message,

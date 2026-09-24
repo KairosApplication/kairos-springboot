@@ -71,6 +71,7 @@ class AuthControllerIntegrationTest {
                 .header(refreshed.headerName(), refreshed.token())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(employeeRequest(999L)))
+                .content(employeeRequest("newhire@example.com")))
                 .andExpect(status().isForbidden());
     }
 
@@ -105,7 +106,6 @@ class AuthControllerIntegrationTest {
     void shouldAuthorizeManagerToRegisterEmployeeButNotReadProducts() throws Exception {
         User manager = createUser("manager@example.com");
         employees.saveAndFlush(new Employee(null, Position.MANAGER, manager));
-        User employee = createUser("employee@example.com");
         CsrfSession session = login(manager.getEmail());
 
         mvc.perform(get("/api/v1/products/list").session(session.session()))
@@ -113,10 +113,10 @@ class AuthControllerIntegrationTest {
         mvc.perform(post("/api/v1/employees/registration").session(session.session())
                 .header(session.headerName(), session.token())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(employeeRequest(employee.getId())))
+                .content(employeeRequest("employee@example.com")))
                 .andExpect(status().isCreated());
         assertThat(employees.count()).isEqualTo(2);
-        assertThat(users.findByEmail("employee@example.com")).contains(employee);
+        assertThat(users.findByEmail("employee@example.com")).isPresent();
     }
 
     @Test
