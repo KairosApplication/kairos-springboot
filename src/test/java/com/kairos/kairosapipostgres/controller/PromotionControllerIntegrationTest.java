@@ -81,4 +81,19 @@ class PromotionControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
         assertThat(promotions.count()).isZero();
     }
+
+    @Test
+    void shouldReturnNotFoundForMissingPromotionAndShelf() throws Exception {
+        mvc.perform(get(BASE + "/find/{id}", 999L).with(user("stocker").roles("EMPLOYEE")))
+                .andExpect(status().isNotFound());
+        mvc.perform(post(BASE + "/registration").with(user("manager").roles("MANAGER")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"shelfId":999,"promotionStartDate":"2026-09-24T10:00:00",
+                         "promotionEndDate":"2026-09-25T10:00:00"}
+                        """))
+                .andExpect(status().isNotFound());
+        mvc.perform(get(BASE + "/list").with(user("stocker").roles("EMPLOYEE")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+    }
 }
