@@ -67,6 +67,10 @@ public class SecurityConfig {
                         .hasAnyRole("MANAGER", "EMPLOYEE")
                         .requestMatchers("/api/v1/product-shelves/**")
                         .hasRole("MANAGER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/inventories/**")
+                        .hasAnyRole("MANAGER", "EMPLOYEE")
+                        .requestMatchers("/api/v1/inventories/**")
+                        .hasRole("MANAGER")
 
                         .requestMatchers("/api/v1/categories/**").authenticated()
                         .requestMatchers("/api/v1/sectors/**").authenticated()
