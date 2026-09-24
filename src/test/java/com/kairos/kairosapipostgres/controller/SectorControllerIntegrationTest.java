@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -35,7 +36,7 @@ class SectorControllerIntegrationTest {
 
     @Test
     void shouldRegisterFindListAndDeleteSector() throws Exception {
-        mvc.perform(post(BASE + "/registration").with(user("tester"))
+        mvc.perform(post(BASE + "/registration").with(user("tester")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"Estoque\",\"type\":\"Operacional\"}"))
                 .andExpect(status().isCreated())
@@ -49,7 +50,7 @@ class SectorControllerIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id));
         mvc.perform(get(BASE + "/list").with(user("tester")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
-        mvc.perform(delete(BASE + "/delete/{id}", id).with(user("tester")))
+        mvc.perform(delete(BASE + "/delete/{id}", id).with(user("tester")).with(csrf()))
                 .andExpect(status().isNoContent());
         assertThat(repository.existsById(id)).isFalse();
     }
@@ -64,7 +65,7 @@ class SectorControllerIntegrationTest {
     void shouldUpdateOnlyProvidedFields(String body, String expectedName, String expectedType) throws Exception {
         Sector sector = repository.saveAndFlush(new Sector(null, "Estoque", "Operacional"));
 
-        mvc.perform(patch(BASE + "/update/{id}", sector.getId()).with(user("tester"))
+        mvc.perform(patch(BASE + "/update/{id}", sector.getId()).with(user("tester")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(sector.getId()))
@@ -82,7 +83,7 @@ class SectorControllerIntegrationTest {
     @ValueSource(strings = {"{}", "{\"name\":null,\"type\":null}", "{\"name\":\"Estoque\"}"})
     void shouldKeepValuesForEmptyNullOrUnchangedUpdate(String body) throws Exception {
         Sector sector = repository.saveAndFlush(new Sector(null, "Estoque", "Operacional"));
-        mvc.perform(patch(BASE + "/update/{id}", sector.getId()).with(user("tester"))
+        mvc.perform(patch(BASE + "/update/{id}", sector.getId()).with(user("tester")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Estoque"))
@@ -107,7 +108,7 @@ class SectorControllerIntegrationTest {
     @ValueSource(strings = {"Estoque", " Estoque "})
     void shouldRejectDuplicateNameOnRegistration(String name) throws Exception {
         repository.saveAndFlush(new Sector(null, "Estoque", "Operacional"));
-        mvc.perform(post(BASE + "/registration").with(user("tester"))
+        mvc.perform(post(BASE + "/registration").with(user("tester")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"%s\",\"type\":\"Outro\"}".formatted(name)))
                 .andExpect(status().isConflict())
@@ -120,7 +121,7 @@ class SectorControllerIntegrationTest {
     void shouldRejectDuplicateNameWithoutChangingEitherField(String name) throws Exception {
         Sector sector = repository.saveAndFlush(new Sector(null, "Estoque", "Operacional"));
         repository.saveAndFlush(new Sector(null, "Vendas", "Operacional"));
-        mvc.perform(patch(BASE + "/update/{id}", sector.getId()).with(user("tester"))
+        mvc.perform(patch(BASE + "/update/{id}", sector.getId()).with(user("tester")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"%s\",\"type\":\"Outro\"}".formatted(name)))
                 .andExpect(status().isConflict())
@@ -134,7 +135,7 @@ class SectorControllerIntegrationTest {
     @ValueSource(strings = {"{\"name\":\"\"}", "{\"name\":\"   \"}", "{\"type\":\"\"}", "{\"type\":\"   \"}"})
     void shouldRejectBlankUpdateFields(String body) throws Exception {
         Sector sector = repository.saveAndFlush(new Sector(null, "Estoque", "Operacional"));
-        mvc.perform(patch(BASE + "/update/{id}", sector.getId()).with(user("tester"))
+        mvc.perform(patch(BASE + "/update/{id}", sector.getId()).with(user("tester")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Invalid request"));
@@ -145,7 +146,7 @@ class SectorControllerIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"name\":\"Estoque\"}", "{\"name\":\"   \",\"type\":\"Operacional\"}"})
     void shouldRejectInvalidRegistration(String body) throws Exception {
-        mvc.perform(post(BASE + "/registration").with(user("tester"))
+        mvc.perform(post(BASE + "/registration").with(user("tester")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest());
         assertThat(repository.count()).isZero();
@@ -157,16 +158,16 @@ class SectorControllerIntegrationTest {
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.message").value("Sector not found"));
         mvc.perform(get(BASE + "/find/name").param("name", "Inexistente").with(user("tester")))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.message").value("Sector not found"));
-        mvc.perform(patch(BASE + "/update/{id}", -1L).with(user("tester"))
+        mvc.perform(patch(BASE + "/update/{id}", -1L).with(user("tester")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Novo\"}"))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.message").value("Sector not found"));
-        mvc.perform(delete(BASE + "/delete/{id}", -1L).with(user("tester")))
+        mvc.perform(delete(BASE + "/delete/{id}", -1L).with(user("tester")).with(csrf()))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.message").value("Sector not found"));
     }
 
     @Test
     void shouldNormalizeRegistrationAndSearchFields() throws Exception {
-        mvc.perform(post(BASE + "/registration").with(user("tester"))
+        mvc.perform(post(BASE + "/registration").with(user("tester")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\" Estoque \",\"type\":\" Operacional \"}"))
                 .andExpect(status().isCreated())
@@ -182,13 +183,13 @@ class SectorControllerIntegrationTest {
     @Test
     void shouldAcceptNameWithExactlyOneHundredCharacters() throws Exception {
         String name = "A".repeat(100);
-        mvc.perform(post(BASE + "/registration").with(user("tester"))
+        mvc.perform(post(BASE + "/registration").with(user("tester")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"%s\",\"type\":\"Operacional\"}".formatted(name)))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.name").value(name));
         Long id = repository.findByName(name).orElseThrow().getId();
         String updatedName = "B".repeat(100);
-        mvc.perform(patch(BASE + "/update/{id}", id).with(user("tester"))
+        mvc.perform(patch(BASE + "/update/{id}", id).with(user("tester")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"%s\"}".formatted(updatedName)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.name").value(updatedName));
@@ -199,13 +200,13 @@ class SectorControllerIntegrationTest {
     @Test
     void shouldRejectNameLongerThanOneHundredCharacters() throws Exception {
         String name = "A".repeat(101);
-        mvc.perform(post(BASE + "/registration").with(user("tester"))
+        mvc.perform(post(BASE + "/registration").with(user("tester")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"%s\",\"type\":\"Operacional\"}".formatted(name)))
                 .andExpect(status().isBadRequest());
         assertThat(repository.count()).isZero();
         Sector sector = repository.saveAndFlush(new Sector(null, "Estoque", "Operacional"));
-        mvc.perform(patch(BASE + "/update/{id}", sector.getId()).with(user("tester"))
+        mvc.perform(patch(BASE + "/update/{id}", sector.getId()).with(user("tester")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"%s\",\"type\":\"Outro\"}".formatted(name)))
                 .andExpect(status().isBadRequest());

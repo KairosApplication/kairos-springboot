@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -49,7 +50,7 @@ class UserControllerIntegrationTest {
 
     @Test
     void shouldRegisterUserWithoutAuthenticationAndEncodePassword() throws Exception {
-        mockMvc.perform(post("/api/v1/users/registration")
+        mockMvc.perform(post("/api/v1/users/registration").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRegistration()))
                 .andExpect(status().isCreated())
@@ -69,7 +70,7 @@ class UserControllerIntegrationTest {
 
     @Test
     void shouldRejectInvalidRegistrationWithFieldErrors() throws Exception {
-        mockMvc.perform(post("/api/v1/users/registration")
+        mockMvc.perform(post("/api/v1/users/registration").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
@@ -81,12 +82,12 @@ class UserControllerIntegrationTest {
 
     @Test
     void shouldReturnConflictForDuplicateUser() throws Exception {
-        mockMvc.perform(post("/api/v1/users/registration")
+        mockMvc.perform(post("/api/v1/users/registration").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRegistration()))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(post("/api/v1/users/registration")
+        mockMvc.perform(post("/api/v1/users/registration").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRegistration()))
                 .andExpect(status().isConflict())
@@ -101,7 +102,7 @@ class UserControllerIntegrationTest {
 
     @Test
     void shouldRunAuthenticatedFindUpdateAndDeleteFlow() throws Exception {
-        mockMvc.perform(post("/api/v1/users/registration")
+        mockMvc.perform(post("/api/v1/users/registration").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRegistration()))
                 .andExpect(status().isCreated());
@@ -118,7 +119,7 @@ class UserControllerIntegrationTest {
                 .andExpect(jsonPath("$[0].cpf").doesNotHaveJsonPath());
 
         mockMvc.perform(patch("/api/v1/users/update/{id}", id)
-                        .with(user("tester"))
+                        .with(user("tester")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -133,7 +134,7 @@ class UserControllerIntegrationTest {
 
         assertThat(repository.findById(id).orElseThrow().getCpf()).isEqualTo("11144477735");
 
-        mockMvc.perform(delete("/api/v1/users/delete/{id}", id).with(user("tester")))
+        mockMvc.perform(delete("/api/v1/users/delete/{id}", id).with(user("tester")).with(csrf()))
                 .andExpect(status().isNoContent());
         assertThat(repository.existsById(id)).isFalse();
     }
