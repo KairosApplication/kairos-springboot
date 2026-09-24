@@ -12,6 +12,41 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(ShelfEmployeeNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleShelfEmployeeNotFound(ShelfEmployeeNotFoundException exception) {
+        return response(HttpStatus.NOT_FOUND, exception.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(ShelfEmployeeAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleShelfEmployeeConflict(ShelfEmployeeAlreadyExistsException exception) {
+        return response(HttpStatus.CONFLICT, exception.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(EmployeeAisleNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleEmployeeAisleNotFound(EmployeeAisleNotFoundException exception) {
+        return response(HttpStatus.NOT_FOUND, exception.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(EmployeeAisleAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleEmployeeAisleConflict(EmployeeAisleAlreadyExistsException exception) {
+        return response(HttpStatus.CONFLICT, exception.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(ShelfNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleShelfNotFound(ShelfNotFoundException exception) {
+        return response(HttpStatus.NOT_FOUND, exception.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(AisleNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleAisleNotFound(AisleNotFoundException exception) {
+        return response(HttpStatus.NOT_FOUND, exception.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(AisleAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleAisleConflict(AisleAlreadyExistsException exception) {
+        return response(HttpStatus.CONFLICT, exception.getMessage(), Map.of());
+    }
+
 
     @ExceptionHandler(SectorNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleSectorNotFound(SectorNotFoundException exception) {
