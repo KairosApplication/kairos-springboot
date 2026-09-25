@@ -8,6 +8,8 @@ import com.kairos.kairosapipostgres.exception.CategoryNotFoundException;
 import com.kairos.kairosapipostgres.mapper.CategoryMapper;
 import com.kairos.kairosapipostgres.model.Category;
 import com.kairos.kairosapipostgres.repository.CategoryRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,7 @@ public class CategoryService {
         this.repository = repository;
     }
 
+    @CacheEvict(cacheNames = "categories", allEntries = true)
     @Transactional
     public CategoryResponse save(CategoryRequest request) {
         if (repository.existsByCategory(request.category())) {
@@ -33,6 +36,7 @@ public class CategoryService {
         return CategoryMapper.toResponse(repository.save(category));
     }
 
+    @Cacheable("categories")
     @Transactional(readOnly = true)
     public List<CategoryResponse> findAll() {
         return repository.findAll().stream()
@@ -54,6 +58,7 @@ public class CategoryService {
         return Optional.of(CategoryMapper.toResponse(category));
     }
 
+    @CacheEvict(cacheNames = "categories", allEntries = true)
     @Transactional
     public Optional<CategoryResponse> update(Long id, CategoryUpdateRequest request) {
         Category category = repository.findById(id)
@@ -69,6 +74,7 @@ public class CategoryService {
         return Optional.of(CategoryMapper.toResponse(repository.save(category)));
     }
 
+    @CacheEvict(cacheNames = "categories", allEntries = true)
     @Transactional
     public boolean deleteById(Long id) {
         repository.findById(id)

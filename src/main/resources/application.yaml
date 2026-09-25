@@ -1,9 +1,32 @@
 server:
   port: ${API_PORT:8080}
+  servlet:
+    session:
+      cookie:
+        name: JSESSIONID
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
 
 spring:
   application:
     name: kairos-api-postgres
+  data:
+    redis:
+      repositories:
+        enabled: false
+      url: ${REDIS_URL:redis://localhost:6379}
+  session:
+    timeout: 30m
+    redis:
+      namespace: kairos:session
+  cache:
+    type: redis
+    cache-names: categories
+    redis:
+      time-to-live: 5m
+      cache-null-values: false
 
   config:
     import: "optional:file:./.env[.properties]"
@@ -14,12 +37,14 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
+  flyway:
+    baseline-on-migrate: true
   jpa:
     database: postgresql
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
-    show-sql: true
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    show-sql: false
     open-in-view: false
 
 management:
@@ -31,4 +56,4 @@ management:
 
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized

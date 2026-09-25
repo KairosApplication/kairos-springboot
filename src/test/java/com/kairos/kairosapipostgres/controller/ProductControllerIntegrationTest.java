@@ -68,17 +68,17 @@ class ProductControllerIntegrationTest {
     }
 
     @Test
-    void shouldRejectAnonymousAndNonCustomerReads() throws Exception {
+    void shouldRejectAnonymousAndAllowAuthenticatedRolesToRead() throws Exception {
         mvc.perform(get(BASE + "/list"))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get(BASE + "/list").with(user("employee").roles("EMPLOYEE")))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
         mvc.perform(get(BASE + "/list").with(user("manager").roles("MANAGER")))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     @Test
-    void shouldKeepProductWritesBlockedByDenyAll() throws Exception {
+    void shouldAllowManagerProductWrites() throws Exception {
         Product product = create("Arroz", "19.90");
 
         mvc.perform(post(BASE + "/registration")
@@ -92,14 +92,13 @@ class ProductControllerIntegrationTest {
                         .with(user("manager").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"price\":18.50}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
+        assertThat(products.findById(product.getId()).orElseThrow().getPrice())
+                .isEqualByComparingTo("18.50");
         mvc.perform(delete(BASE + "/delete/{id}", product.getId())
                         .with(user("manager").roles("MANAGER")).with(csrf()))
-                .andExpect(status().isForbidden());
-
-        assertThat(products.count()).isEqualTo(1);
-        assertThat(products.findById(product.getId()).orElseThrow().getPrice())
-                .isEqualByComparingTo("19.90");
+                .andExpect(status().isNoContent());
+        assertThat(products.count()).isZero();
     }
 
     @Test

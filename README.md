@@ -9,6 +9,8 @@ API REST do projeto Kairos, desenvolvida com Spring Boot e conectada a um banco 
 - Spring Data JPA
 - Hibernate
 - PostgreSQL
+- Redis
+- Flyway
 - Maven
 - Spring Boot Actuator
 
@@ -18,7 +20,8 @@ Antes de executar o projeto, tenha instalado:
 
 - JDK 21;
 - Maven, caso o projeto não possua Maven Wrapper;
-- acesso ao PostgreSQL hospedado no Aiven.
+- acesso ao PostgreSQL hospedado no Aiven;
+- Redis acessível pela API.
 
 ## Variáveis de ambiente
 
@@ -29,6 +32,8 @@ API_PORT=8080
 DB_URL=jdbc:postgresql://SEU_HOST:SUA_PORTA/defaultdb?sslmode=require
 DB_USERNAME=avnadmin
 DB_PASSWORD=SUA_SENHA
+REDIS_URL=redis://localhost:6379
+CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
 
 O arquivo `.env` contém credenciais reais e não deve ser enviado para o GitHub.
@@ -49,49 +54,18 @@ API_PORT=8080
 DB_URL=jdbc:postgresql://SEU_HOST:SUA_PORTA/defaultdb?sslmode=require
 DB_USERNAME=avnadmin
 DB_PASSWORD=SUA_SENHA
+REDIS_URL=redis://localhost:6379
+CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
 
 > O `.env.example` pode ser enviado ao GitHub, pois não deve conter nenhuma credencial real.
 
 ## Configuração da aplicação
 
-O arquivo `src/main/resources/application.yaml` deve estar configurado assim:
-
-```yaml
-server:
-  port: ${API_PORT:8080}
-
-spring:
-  application:
-    name: kairos-api-postgres
-
-  config:
-    import: "optional:file:./.env[.properties]"
-
-  datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    database: postgresql
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
-    show-sql: true
-
-management:
-  endpoints:
-    web:
-      base-path: /
-      exposure:
-        include: health
-
-  endpoint:
-    health:
-      show-details: always
-```
+A aplicação lê a conexão PostgreSQL e Redis do ambiente. O Flyway aplica as
+migrações e o Hibernate valida o esquema; não use `ddl-auto=update` em produção.
+Veja [segurança, Redis e migrações](docs/security-redis.md) para a configuração
+completa.
 
 O Spring interpreta o `.env` como um arquivo de propriedades por causa desta configuração:
 

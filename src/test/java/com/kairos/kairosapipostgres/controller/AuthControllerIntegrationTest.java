@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
@@ -35,6 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AuthControllerIntegrationTest {
 
     private static final String PASSWORD = "test-password-123";
+    private static final AtomicLong CPF_SEQUENCE = new AtomicLong(52998224725L);
 
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper objectMapper;
@@ -42,6 +44,38 @@ class AuthControllerIntegrationTest {
     @Autowired private CustomerRepository customers;
     @Autowired private EmployeeRepository employees;
     @Autowired private PasswordEncoder passwordEncoder;
+
+    @Test
+    void shouldLoginAfterPublicRegistration() throws Exception {
+        CsrfSession csrf = csrf(null);
+        mvc.perform(post("/api/v1/users/registration").session(csrf.session())
+                .header(csrf.headerName(), csrf.token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "name": "Davi",
+                          "lastName": "Dias",
+                          "birthDate": "2000-02-12",
+                          "password": "password-123",
+                          "zipCode": "01310-100",
+                          "plan": "STANDART",
+                          "email": "newcustomer@example.com",
+                          "cpf": "11144477735"
+                        }
+                        """))
+                .andExpect(status().isCreated());
+        User created = users.findByEmail("newcustomer@example.com").orElseThrow();
+        assertThat(customers.existsByUserId(created.getId())).isTrue();
+
+        mvc.perform(post("/api/v1/auth/login").session(csrf.session())
+                .header(csrf.headerName(), csrf.token())
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .param("email", created.getEmail()).param("password", "password-123"))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/auth/me").session(csrf.session()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles[0]").value("CUSTOMER"));
+    }
 
     @Test
     void shouldLoginWithDatabaseCredentialsRotateSessionAndPreserveAuthentication() throws Exception {
@@ -102,13 +136,13 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
-    void shouldAuthorizeManagerToRegisterEmployeeButNotReadProducts() throws Exception {
+    void shouldAuthorizeManagerToRegisterEmployeeAndReadProducts() throws Exception {
         User manager = createUser("manager@example.com");
         employees.saveAndFlush(new Employee(null, Position.MANAGER, manager));
         CsrfSession session = login(manager.getEmail());
 
         mvc.perform(get("/api/v1/products/list").session(session.session()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
         mvc.perform(post("/api/v1/employees/registration").session(session.session())
                 .header(session.headerName(), session.token())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -119,14 +153,14 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
-    void shouldKeepRegularEmployeeRoleWithoutGrantingCustomerAccess() throws Exception {
+    void shouldAllowRegularEmployeeToReadProducts() throws Exception {
         User employee = createUser("employee@example.com");
         employees.saveAndFlush(new Employee(null, Position.CASHIER, employee));
         CsrfSession session = login(employee.getEmail());
         mvc.perform(get("/api/v1/auth/me").session(session.session()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.roles[0]").value("EMPLOYEE"));
         mvc.perform(get("/api/v1/products/list").session(session.session()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -208,7 +242,7 @@ class AuthControllerIntegrationTest {
 
     private User createUser(String email) {
         return users.saveAndFlush(new User(null, "Ana", "Silva", LocalDate.of(2000, 1, 1),
-                "52998224725", email, passwordEncoder.encode(PASSWORD), "01310-100", Plan.STANDART));
+                Long.toString(CPF_SEQUENCE.getAndIncrement()), email, passwordEncoder.encode(PASSWORD), "01310-100", Plan.STANDART));
     }
 
     private String employeeRequest(String email) {

@@ -1,9 +1,21 @@
 spring:
+  autoconfigure:
+    exclude: org.springframework.boot.session.data.redis.autoconfigure.SessionDataRedisAutoConfiguration
+  cache:
+    type: none
+  session:
+    store-type: none
   datasource:
     url: jdbc:h2:mem:kairos;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
     username: sa
     password:
     driver-class-name: org.h2.Driver
+  flyway:
+    enabled: false
+  data:
+    redis:
+      repositories:
+        enabled: false
   jpa:
     hibernate:
       ddl-auto: create-drop
@@ -16,3 +28,7 @@ management:
       base-path: /
       exposure:
         include: health
+
+  health:
+    redis:
+      enabled: false
