@@ -9,6 +9,8 @@ import com.kairos.kairosapipostgres.exception.UserNotFoundException;
 import com.kairos.kairosapipostgres.model.User;
 import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.repository.UserRepository;
+import com.kairos.kairosapipostgres.repository.CustomerRepository;
+import com.kairos.kairosapipostgres.repository.EmployeeRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,11 +39,14 @@ class UserServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock private CustomerRepository customers;
+    @Mock private EmployeeRepository employees;
+
     private UserService service;
 
     @BeforeEach
     void setUp() {
-        service = new UserService(repository, passwordEncoder);
+        service = new UserService(repository, passwordEncoder, customers, employees);
     }
 
     @Test

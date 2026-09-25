@@ -23,7 +23,7 @@ Os erros de login não informam se o e-mail existe. As respostas de autenticaç�
 não retornam senha ou hash. Erros de autenticação/autorização usam status HTTP,
 sem redirecionamento HTML.
 
-A URL de login é a única URL pública de negócio: o GET nela apenas prepara o
+A URL de login e o cadastro de usuário são as URLs públicas de negócio: o GET nela apenas prepara o
 token CSRF. Não autentica o usuário nem retorna seus dados. Acesso a rotas
 protegidas sem sessão retorna `401`; uma sessão sem permissão retorna `403`.
 Métodos que alteram estado sem CSRF válido retornam `403`, inclusive o login.
@@ -90,14 +90,14 @@ as rotas de autenticação. Em produção, configure a origem real e HTTPS,
 `SERVER_SERVLET_SESSION_COOKIE_HTTP_ONLY=true`. Para front e API em sites
 distintos, revise também SameSite e a política de cookies do navegador.
 
-## Limites atuais
+## Permissões atuais
 
-- As permissões existentes continuam: clientes consultam produtos e gerentes
-  cadastram funcionários. Outros endpoints de negócio continuam bloqueados.
-- O cadastro de funcionários ainda recebe um `userId` existente. Criar usuário
-  e funcionário numa única transação e impedir cadastro de `MANAGER` pela API
-  são mudanças de negócio separadas, ainda não implementadas.
-- As roles são carregadas no login. Alterações de cargo/vínculo precisam de
-  novo login ou de uma futura estratégia de invalidação das sessões afetadas.
-- A suíte focada desta mudança é `AuthControllerIntegrationTest`; os testes
-  antigos ainda precisam ser adaptados às permissões atuais.
+- Cadastro público de usuário cria o usuário e o perfil CUSTOMER na mesma transação.
+- Clientes, funcion�rios e gerentes consultam produtos. Gerentes cadastram, editam e removem produtos.
+- Gerentes administram usuários, clientes, funcionários, categorias e setores.
+- Leitura de categorias e setores exige autenticação.
+- O primeiro gerente pode ser criado por variáveis de ambiente de bootstrap, conforme
+  [configuração de segurança e Redis](security-redis.md).
+- A sessão e o token CSRF persistem no Redis. O cache de listagem de categorias
+  também usa Redis, com expiração em cinco minutos e invalidação nas alterações.
+- As roles são carregadas no login. Mudanças de cargo ou vínculo exigem novo login.

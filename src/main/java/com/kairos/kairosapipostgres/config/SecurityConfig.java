@@ -43,14 +43,16 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").authenticated()
 
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**")
-                        .hasRole("CUSTOMER")
+                        .hasAnyRole("CUSTOMER", "EMPLOYEE", "MANAGER")
+                        .requestMatchers("/api/v1/products/**").hasRole("MANAGER")
                         .requestMatchers("/api/v1/employees/**")
                         .hasRole("MANAGER")
 
-                        .requestMatchers("/api/v1/categories/**").authenticated()
-                        .requestMatchers("/api/v1/sectors/**").authenticated()
-                        .requestMatchers("/api/v1/customers/**").authenticated()
-                        .requestMatchers("/api/v1/users/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/categories/**",
+                                "/api/v1/sectors/**").authenticated()
+                        .requestMatchers("/api/v1/categories/**", "/api/v1/sectors/**",
+                                "/api/v1/customers/**", "/api/v1/users/**")
+                        .hasRole("MANAGER")
 
                         .anyRequest().denyAll()
                 )
