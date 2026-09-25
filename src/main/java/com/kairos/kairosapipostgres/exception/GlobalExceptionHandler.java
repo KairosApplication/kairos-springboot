@@ -12,16 +12,6 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    @ExceptionHandler(PromotionNotFoundException.class)
-    public ResponseEntity<ApiErrorResponse> handlePromotionNotFound(PromotionNotFoundException exception) {
-        return response(HttpStatus.NOT_FOUND, exception.getMessage(), Map.of());
-    }
-
-    @ExceptionHandler(InvalidPromotionPeriodException.class)
-    public ResponseEntity<ApiErrorResponse> handleInvalidPromotionPeriod(InvalidPromotionPeriodException exception) {
-        return response(HttpStatus.BAD_REQUEST, exception.getMessage(), Map.of());
-    }
-
     @ExceptionHandler(AlertNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleAlertNotFound(AlertNotFoundException exception) {
         return response(HttpStatus.NOT_FOUND, exception.getMessage(), Map.of());
