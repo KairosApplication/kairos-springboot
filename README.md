@@ -180,6 +180,22 @@ Se o banco estiver inacessível, o health check poderá retornar:
 }
 ```
 
+## API e autenticação
+
+Os recursos de usuários, funcionários, clientes, categorias, setores, produtos e compras ficam sob `/api/v1`. A documentação interativa está em [`/swagger-ui/index.html`](http://localhost:8080/swagger-ui/index.html) e a especificação JSON em [`/v3/api-docs`](http://localhost:8080/v3/api-docs) quando a aplicação estiver em execução. Veja o [guia do Swagger](docs/swagger.md) para testar autenticação por sessão e CSRF.
+
+A autenticação usa sessão HTTP e cookie `JSESSIONID`, não JWT nem HTTP Basic. O fluxo é: obter um token CSRF com `GET /api/v1/auth/login`, enviar `POST /api/v1/auth/login` como formulário com `email`, `password` e o header CSRF, e consultar `GET /api/v1/auth/me`. Login válido retorna `204`; o logout é `POST /api/v1/auth/logout` e também exige CSRF. No frontend, envie `credentials: "include"` em todas as chamadas.
+
+Além do login, são públicos `POST /api/v1/users/registration`, `/health` e as rotas do Swagger/OpenAPI. Os demais acessos seguem as regras atuais:
+
+| Rotas | Permissão |
+| --- | --- |
+| `GET /api/v1/products/**` | Role `CUSTOMER` |
+| `/api/v1/employees/**` | Role `MANAGER` |
+| `/api/v1/users/**`, `/api/v1/customers/**`, `/api/v1/categories/**`, `/api/v1/sectors/**` | Usuário autenticado |
+
+As demais rotas, inclusive métodos de escrita em `/api/v1/products/**`, são negadas pela configuração atual. Requisições que alteram estado exigem token CSRF válido. Para o fluxo completo e as limitações atuais, consulte o [guia de autenticação](docs/authentication.md).
+
 ## Configuração no IntelliJ IDEA
 
 Se o Spring não encontrar o `.env`:
