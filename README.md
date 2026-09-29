@@ -1,6 +1,8 @@
 # Kairos API PostgreSQL
 
-API REST do projeto Kairos, desenvolvida com Spring Boot e conectada a um banco PostgreSQL hospedado no Aiven.
+API REST do projeto Kairos, desenvolvida com Spring Boot e PostgreSQL. O Aiven é uma opção de hospedagem do banco, não um requisito para executar a aplicação.
+
+Esta documentação acompanha o código desta branch. As funcionalidades ainda não integradas à `main` ficam disponíveis nela somente após o merge das respectivas PRs.
 
 ## Tecnologias
 
@@ -13,6 +15,7 @@ API REST do projeto Kairos, desenvolvida com Spring Boot e conectada a um banco 
 - Flyway
 - Maven
 - Spring Boot Actuator
+- Spring Security (autenticação por sessão)
 
 ## Pré-requisitos
 
@@ -22,40 +25,46 @@ Antes de executar o projeto, tenha instalado:
 - Maven, caso o projeto não possua Maven Wrapper;
 - acesso ao PostgreSQL hospedado no Aiven;
 - Redis acessível pela API.
+- PostgreSQL acessível pela aplicação (local ou hospedado);
+- Docker em execução apenas para os testes de integração com Testcontainers.
+
+O repositório inclui Maven Wrapper (`mvnw` e `mvnw.cmd`), então não é necessário instalar Maven separadamente.
 
 ## Variáveis de ambiente
 
-Na raiz do projeto, crie um arquivo chamado `.env`:
+Na raiz do projeto, copie `.env.example` para `.env` e preencha os dados do seu PostgreSQL:
 
 ```env
 API_PORT=8080
-DB_URL=jdbc:postgresql://SEU_HOST:SUA_PORTA/defaultdb?sslmode=require
-DB_USERNAME=avnadmin
+DB_URL=jdbc:postgresql://SEU_HOST:SUA_PORTA/SEU_BANCO
+DB_USERNAME=SEU_USUARIO
 DB_PASSWORD=SUA_SENHA
 REDIS_URL=redis://localhost:6379
 CORS_ALLOWED_ORIGINS=http://localhost:5173
+JPA_DDL_AUTO=update
 ```
 
 O arquivo `.env` contém credenciais reais e não deve ser enviado para o GitHub.
 
-Adicione ao `.gitignore`:
+O repositório já ignora esse arquivo em `.gitignore`:
 
 ```gitignore
 /.env
 ```
 
-O arquivo `.env.example` deve possuir as mesmas variáveis, mas somente com valores fictícios:
+O arquivo `.env.example` versionado contém as mesmas variáveis, sem credenciais reais. O valor `JPA_DDL_AUTO=update` é apropriado apenas para desenvolvimento; defina conscientemente a estratégia de schema em outros ambientes.
 
 ```env
 # Porta HTTP da API
 API_PORT=8080
 
-# Conexão PostgreSQL/Aiven
-DB_URL=jdbc:postgresql://SEU_HOST:SUA_PORTA/defaultdb?sslmode=require
-DB_USERNAME=avnadmin
+# Conexão PostgreSQL
+DB_URL=jdbc:postgresql://SEU_HOST:SUA_PORTA/SEU_BANCO
+DB_USERNAME=SEU_USUARIO
 DB_PASSWORD=SUA_SENHA
 REDIS_URL=redis://localhost:6379
 CORS_ALLOWED_ORIGINS=http://localhost:5173
+JPA_DDL_AUTO=update
 ```
 
 > O `.env.example` pode ser enviado ao GitHub, pois não deve conter nenhuma credencial real.
@@ -66,6 +75,44 @@ A aplicação lê a conexão PostgreSQL e Redis do ambiente. O Flyway aplica as
 migrações e o Hibernate valida o esquema; não use `ddl-auto=update` em produção.
 Veja [segurança, Redis e migrações](docs/security-redis.md) para a configuração
 completa.
+O arquivo `src/main/resources/application.yaml` já contém a configuração abaixo:
+
+```yaml
+server:
+  port: ${API_PORT:8080}
+
+spring:
+  application:
+    name: kairos-api-postgres
+
+  config:
+    import: "optional:file:./.env[.properties]"
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: true
+    open-in-view: false
+
+management:
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: health
+
+  endpoint:
+    health:
+      show-details: always
+```
 
 O Spring interpreta o `.env` como um arquivo de propriedades por causa desta configuração:
 
@@ -75,26 +122,26 @@ spring:
     import: "optional:file:./.env[.properties]"
 ```
 
-No Aiven, a URL deve começar com:
+Uma URL JDBC PostgreSQL deve começar com:
 
 ```text
 jdbc:postgresql://
 ```
 
-E normalmente precisa conter:
+Se o provedor exigir SSL, acrescente o parâmetro correspondente; no Aiven, normalmente é:
 
 ```text
 ?sslmode=require
 ```
 
-## Estrutura dos arquivos
+## Arquivos principais
 
 ```text
 kairos-api-postgres/
-├── src/
-│   └── main/
-│       └── resources/
-│           └── application.yaml
+├── src/main/resources/application.yaml
+├── src/test/
+├── docs/
+├── .github/workflows/
 ├── .env
 ├── .env.example
 ├── .gitignore
@@ -116,12 +163,6 @@ kairos-api-postgres/
 
 ```bash
 ./mvnw spring-boot:run
-```
-
-Caso o projeto não possua Maven Wrapper:
-
-```bash
-mvn spring-boot:run
 ```
 
 Por padrão, a API ficará disponível em:
@@ -153,6 +194,24 @@ Se o banco estiver inacessível, o health check poderá retornar:
   "status": "DOWN"
 }
 ```
+
+## API e autenticação
+
+Os recursos de usuários, funcionários, clientes, categorias, setores, produtos e compras ficam sob `/api/v1`. A documentação interativa está em [`/swagger-ui/index.html`](http://localhost:8080/swagger-ui/index.html) e a especificação JSON em [`/v3/api-docs`](http://localhost:8080/v3/api-docs) quando a aplicação estiver em execução. Veja o [guia do Swagger](docs/swagger.md) para testar autenticação por sessão e CSRF.
+
+A autenticação usa sessão HTTP e cookie `JSESSIONID`, não JWT nem HTTP Basic. O fluxo é: obter um token CSRF com `GET /api/v1/auth/login`, enviar `POST /api/v1/auth/login` como formulário com `email`, `password` e o header CSRF, e consultar `GET /api/v1/auth/me`. Login válido retorna `204`; o logout é `POST /api/v1/auth/logout` e também exige CSRF. No frontend, envie `credentials: "include"` em todas as chamadas.
+
+Além do login, são públicos `POST /api/v1/users/registration`, `/health` e as rotas do Swagger/OpenAPI. Os demais acessos seguem as regras atuais:
+
+| Rotas | Permissão |
+| --- | --- |
+| `GET /api/v1/products/**` | Role `CUSTOMER` |
+| `/api/v1/employees/**` | Role `MANAGER` |
+| `GET /api/v1/purchases/**` | Role `MANAGER` |
+| `GET /api/v1/customers/{id}/recommendations` | O próprio cliente ou um gerente |
+| `/api/v1/users/**`, `/api/v1/customers/**`, `/api/v1/categories/**`, `/api/v1/sectors/**` | Usuário autenticado |
+
+As demais rotas, inclusive métodos de escrita em `/api/v1/products/**`, são negadas pela configuração atual. Requisições que alteram estado exigem token CSRF válido. Para o fluxo completo e as limitações atuais, consulte o [guia de autenticação](docs/authentication.md).
 
 ## Configuração no IntelliJ IDEA
 
@@ -302,8 +361,9 @@ comuns; se necessário, configure também um Dependabot secret com esse nome.
   na `main` e manualmente, ocultando qualquer segredo encontrado nos logs.
 - Relatórios de testes, cobertura e vulnerabilidades são publicados como artefatos
   por 14 dias; relatórios ausentes em falhas de inicialização geram aviso.
-- Dependabot abre PRs semanais somente para GitHub Actions a partir da branch
-  padrão. As dependências Maven permanecem sob atualização manual.
+- [Dependabot](docs/dependabot.md) abre PRs semanais somente para GitHub
+  Actions a partir da branch padrão. As dependências Maven permanecem sob
+  atualização manual.
 
 No ruleset da `main`, exija `Analyze Java`, `Build and test`,
 `PostgreSQL integration tests` e `Secret scan`. Não exija

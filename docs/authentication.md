@@ -85,19 +85,26 @@ cookie. Após recarregar a página, obtenha novamente o token pelo GET de login.
 O CSRF padrão fica vinculado à sessão; invalidar a sessão também o descarta.
 
 O CORS permite `http://localhost:5173`, credenciais e `X-CSRF-TOKEN`, incluindo
-as rotas de autenticação. Em produção, configure a origem real e HTTPS,
+as rotas de autenticação. Essa origem está fixa em `CorsConfig`; para produção,
+é preciso alterá-la ou torná-la configurável. Use HTTPS e configure
 `SERVER_SERVLET_SESSION_COOKIE_SECURE=true` e
 `SERVER_SERVLET_SESSION_COOKIE_HTTP_ONLY=true`. Para front e API em sites
 distintos, revise também SameSite e a política de cookies do navegador.
 
-## Permissões atuais
+## Permissões e limites atuais
 
-- Cadastro público de usuário cria o usuário e o perfil CUSTOMER na mesma transação.
-- Clientes, funcion�rios e gerentes consultam produtos. Gerentes cadastram, editam e removem produtos.
-- Gerentes administram usuários, clientes, funcionários, categorias e setores.
-- Leitura de categorias e setores exige autenticação.
-- O primeiro gerente pode ser criado por variáveis de ambiente de bootstrap, conforme
-  [configuração de segurança e Redis](security-redis.md).
-- A sessão e o token CSRF persistem no Redis. O cache de listagem de categorias
-  também usa Redis, com expiração em cinco minutos e invalidação nas alterações.
-- As roles são carregadas no login. Mudanças de cargo ou vínculo exigem novo login.
+- `GET /api/v1/products/**` exige `CUSTOMER`; os demais métodos em produtos
+  estão bloqueados. Todas as rotas de funcionários exigem `MANAGER`.
+- `GET /api/v1/purchases/**` exige `MANAGER`. A recomendação de produtos em
+  `GET /api/v1/customers/{id}/recommendations` só pode ser consultada pelo
+  próprio cliente ou por um gerente.
+- As rotas de usuários, clientes, categorias e setores exigem autenticação,
+  exceto o cadastro público de usuário. Rotas não autorizadas explicitamente
+  pela configuração de segurança são negadas.
+- O cadastro de funcionários ainda recebe um `userId` existente. Criar usuário
+  e funcionário numa única transação e impedir cadastro de `MANAGER` pela API
+  são mudanças de negócio separadas, ainda não implementadas.
+- As roles são carregadas no login. Alterações de cargo/vínculo precisam de
+  novo login ou de uma futura estratégia de invalidação das sessões afetadas.
+- Este guia acompanha o código desta branch. Os recursos ainda em PR só estarão
+  disponíveis na `main` após o merge.
