@@ -12,6 +12,16 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(ProductShelfNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleProductShelfNotFound(ProductShelfNotFoundException exception) {
+        return response(HttpStatus.NOT_FOUND, exception.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(ProductShelfAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleProductShelfConflict(ProductShelfAlreadyExistsException exception) {
+        return response(HttpStatus.CONFLICT, exception.getMessage(), Map.of());
+    }
+
     @ExceptionHandler(ShelfEmployeeNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleShelfEmployeeNotFound(ShelfEmployeeNotFoundException exception) {
         return response(HttpStatus.NOT_FOUND, exception.getMessage(), Map.of());
