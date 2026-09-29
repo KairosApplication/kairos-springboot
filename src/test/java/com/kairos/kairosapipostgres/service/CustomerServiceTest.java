@@ -9,12 +9,15 @@ import com.kairos.kairosapipostgres.model.Customer;
 import com.kairos.kairosapipostgres.model.User;
 import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.repository.CustomerRepository;
+import com.kairos.kairosapipostgres.repository.ProductRepository;
 import com.kairos.kairosapipostgres.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -23,6 +26,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,11 +40,14 @@ class CustomerServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private ProductRepository productRepository;
+
     private CustomerService service;
 
     @BeforeEach
     void setUp() {
-        service = new CustomerService(customerRepository, userRepository);
+        service = new CustomerService(customerRepository, userRepository, productRepository);
     }
 
     @Test
@@ -136,6 +143,16 @@ class CustomerServiceTest {
                 .isInstanceOf(CustomerNotFoundException.class)
                 .hasMessage("Customer not found");
         verify(customerRepository, never()).deleteById(any());
+    }
+
+    @Test
+    void shouldRejectRecommendationsForAnotherCustomer() {
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer(1L, 10L)));
+
+        assertThatThrownBy(() -> service.recommendProducts(1L, 10,
+                new UsernamePasswordAuthenticationToken("other@example.com", "password")))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(productRepository, never()).recommendForCustomer(any(), anyInt());
     }
 
     private Customer customer(Long id, Long userId) {

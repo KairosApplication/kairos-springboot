@@ -2,10 +2,12 @@ package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.dto.request.CustomerRequest;
 import com.kairos.kairosapipostgres.dto.response.CustomerResponse;
+import com.kairos.kairosapipostgres.dto.response.RecommendedProductResponse;
 import com.kairos.kairosapipostgres.service.CustomerService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -39,6 +41,13 @@ public class CustomerController {
     @GetMapping("find/{id}")
     public ResponseEntity<Optional<CustomerResponse>> findById(@PathVariable Long id) {
         return ResponseEntity.ok(customerService.findById(id));
+    }
+
+    @GetMapping("/{id}/recommendations")
+    public ResponseEntity<List<RecommendedProductResponse>> recommendProducts(
+            @PathVariable Long id, @RequestParam(defaultValue = "10") int limit, Authentication authentication
+    ) {
+        return ResponseEntity.ok(customerService.recommendProducts(id, limit, authentication));
     }
 
     @DeleteMapping("delete/{id}")
