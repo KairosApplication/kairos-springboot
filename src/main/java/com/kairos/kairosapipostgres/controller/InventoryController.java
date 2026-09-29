@@ -41,6 +41,13 @@ public class InventoryController {
         return ResponseEntity.ok(service.findBySectorId(sectorId));
     }
 
+    @GetMapping("/{inventoryId}/products/{productId}/availability")
+    public ResponseEntity<Boolean> checkProductAvailability(
+            @PathVariable Long inventoryId, @PathVariable Long productId, @RequestParam Integer quantity
+    ) {
+        return ResponseEntity.ok(service.isProductAvailable(inventoryId, productId, quantity));
+    }
+
     @PatchMapping("/update/{id}")
     public ResponseEntity<Optional<InventoryResponse>> update(
             @PathVariable Long id, @Valid @RequestBody InventoryUpdateRequest request

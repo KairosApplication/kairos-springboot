@@ -9,6 +9,7 @@ import com.kairos.kairosapipostgres.mapper.InventoryMapper;
 import com.kairos.kairosapipostgres.model.Inventory;
 import com.kairos.kairosapipostgres.model.Sector;
 import com.kairos.kairosapipostgres.repository.InventoryRepository;
+import com.kairos.kairosapipostgres.repository.ProductInventoryRepository;
 import com.kairos.kairosapipostgres.repository.SectorRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,10 +21,13 @@ import java.util.Optional;
 public class InventoryService {
     private final InventoryRepository repository;
     private final SectorRepository sectorRepository;
+    private final ProductInventoryRepository productInventoryRepository;
 
-    public InventoryService(InventoryRepository repository, SectorRepository sectorRepository) {
+    public InventoryService(InventoryRepository repository, SectorRepository sectorRepository,
+                            ProductInventoryRepository productInventoryRepository) {
         this.repository = repository;
         this.sectorRepository = sectorRepository;
+        this.productInventoryRepository = productInventoryRepository;
     }
 
     @Transactional
@@ -50,6 +54,13 @@ public class InventoryService {
             throw new SectorNotFoundException("Sector not found");
         }
         return repository.findBySectorId(sectorId).stream().map(InventoryMapper::toResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isProductAvailable(Long inventoryId, Long productId, Integer quantity) {
+        return quantity != null && quantity > 0
+                && productInventoryRepository.existsByInventoryIdAndProductIdAndProductQuantityGreaterThanEqual(
+                        inventoryId, productId, quantity);
     }
 
     @Transactional
