@@ -55,7 +55,7 @@ class CustomerControllerIntegrationTest {
         User savedUser = userRepository.save(customerUser());
 
         mockMvc.perform(post("/api/v1/customers/registration")
-                        .with(user("tester")).with(csrf())
+                        .with(user("tester").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request(savedUser.getId())))
                 .andExpect(status().isCreated())
@@ -65,15 +65,15 @@ class CustomerControllerIntegrationTest {
 
         Long customerId = customerRepository.findAll().getFirst().getId();
 
-        mockMvc.perform(get("/api/v1/customers/list").with(user("tester")))
+        mockMvc.perform(get("/api/v1/customers/list").with(user("tester").roles("MANAGER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(customerId));
 
-        mockMvc.perform(get("/api/v1/customers/find/{id}", customerId).with(user("tester")))
+        mockMvc.perform(get("/api/v1/customers/find/{id}", customerId).with(user("tester").roles("MANAGER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(customerId));
 
-        mockMvc.perform(delete("/api/v1/customers/delete/{id}", customerId).with(user("tester")).with(csrf()))
+        mockMvc.perform(delete("/api/v1/customers/delete/{id}", customerId).with(user("tester").roles("MANAGER")).with(csrf()))
                 .andExpect(status().isNoContent());
         assertThat(customerRepository.existsById(customerId)).isFalse();
         assertThat(userRepository.existsById(savedUser.getId())).isTrue();
@@ -82,7 +82,7 @@ class CustomerControllerIntegrationTest {
     @Test
     void shouldReturnNotFoundWhenUserDoesNotExist() throws Exception {
         mockMvc.perform(post("/api/v1/customers/registration")
-                        .with(user("tester")).with(csrf())
+                        .with(user("tester").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request(999L)))
                 .andExpect(status().isNotFound())
@@ -95,13 +95,13 @@ class CustomerControllerIntegrationTest {
         String request = request(savedUser.getId());
 
         mockMvc.perform(post("/api/v1/customers/registration")
-                        .with(user("tester")).with(csrf())
+                        .with(user("tester").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/v1/customers/registration")
-                        .with(user("tester")).with(csrf())
+                        .with(user("tester").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isConflict())
@@ -111,7 +111,7 @@ class CustomerControllerIntegrationTest {
     @Test
     void shouldRejectInvalidCustomerRequest() throws Exception {
         mockMvc.perform(post("/api/v1/customers/registration")
-                        .with(user("tester")).with(csrf())
+                        .with(user("tester").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
@@ -120,7 +120,7 @@ class CustomerControllerIntegrationTest {
 
     @Test
     void shouldReturnNotFoundWhenCustomerDoesNotExist() throws Exception {
-        mockMvc.perform(get("/api/v1/customers/find/{id}", 999L).with(user("tester")))
+        mockMvc.perform(get("/api/v1/customers/find/{id}", 999L).with(user("tester").roles("MANAGER")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Customer not found"));
     }

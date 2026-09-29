@@ -62,6 +62,10 @@ class CustomerRecommendationIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
         mvc.perform(get(path, customer.getId()).with(user("other@example.com").roles("CUSTOMER")))
                 .andExpect(status().isForbidden());
+        mvc.perform(get(path, customer.getId()).with(user("manager").roles("MANAGER")))
+                .andExpect(status().isOk());
+        mvc.perform(get(path, customer.getId()).with(user("employee").roles("EMPLOYEE")))
+                .andExpect(status().isForbidden());
         mvc.perform(get(path, customer.getId()).param("limit", "0")
                 .with(user(account.getEmail()).roles("CUSTOMER")))
                 .andExpect(status().isBadRequest());

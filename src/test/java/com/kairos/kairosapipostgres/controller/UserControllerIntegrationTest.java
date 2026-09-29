@@ -2,6 +2,7 @@ package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.User;
 import com.kairos.kairosapipostgres.repository.UserRepository;
+import com.kairos.kairosapipostgres.repository.CustomerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +35,9 @@ class UserControllerIntegrationTest {
     private UserRepository repository;
 
     @Autowired
+    private CustomerRepository customers;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @BeforeEach
@@ -61,6 +65,7 @@ class UserControllerIntegrationTest {
                 .andExpect(jsonPath("$.password").doesNotExist());
 
         User saved = repository.findByEmail("ana@example.com").orElseThrow();
+        assertThat(customers.existsByUserId(saved.getId())).isTrue();
         assertThat(saved.getLastName()).isEqualTo("Silva");
         assertThat(saved.getBirthDate()).hasToString("1995-05-20");
         assertThat(saved.getZipCode()).isEqualTo("01310-100");
@@ -108,18 +113,18 @@ class UserControllerIntegrationTest {
                 .andExpect(status().isCreated());
         Long id = repository.findByEmail("ana@example.com").orElseThrow().getId();
 
-        mockMvc.perform(get("/api/v1/users/find/{id}", id).with(user("tester")))
+        mockMvc.perform(get("/api/v1/users/find/{id}", id).with(user("tester").roles("MANAGER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.cpf").doesNotHaveJsonPath());
 
-        mockMvc.perform(get("/api/v1/users/list").with(user("tester")))
+        mockMvc.perform(get("/api/v1/users/list").with(user("tester").roles("MANAGER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(id))
                 .andExpect(jsonPath("$[0].cpf").doesNotHaveJsonPath());
 
         mockMvc.perform(patch("/api/v1/users/update/{id}", id)
-                        .with(user("tester")).with(csrf())
+                        .with(user("tester").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -134,14 +139,14 @@ class UserControllerIntegrationTest {
 
         assertThat(repository.findById(id).orElseThrow().getCpf()).isEqualTo("11144477735");
 
-        mockMvc.perform(delete("/api/v1/users/delete/{id}", id).with(user("tester")).with(csrf()))
+        mockMvc.perform(delete("/api/v1/users/delete/{id}", id).with(user("tester").roles("MANAGER")).with(csrf()))
                 .andExpect(status().isNoContent());
         assertThat(repository.existsById(id)).isFalse();
     }
 
     @Test
     void shouldReturnNotFoundForMissingUser() throws Exception {
-        mockMvc.perform(get("/api/v1/users/find/{id}", 999L).with(user("tester")))
+        mockMvc.perform(get("/api/v1/users/find/{id}", 999L).with(user("tester").roles("MANAGER")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("User not found"));
     }

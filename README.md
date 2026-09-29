@@ -11,6 +11,8 @@ Esta documentação acompanha o código desta branch. As funcionalidades ainda n
 - Spring Data JPA
 - Hibernate
 - PostgreSQL
+- Redis
+- Flyway
 - Maven
 - Spring Boot Actuator
 - Spring Security (autenticação por sessão)
@@ -20,6 +22,9 @@ Esta documentação acompanha o código desta branch. As funcionalidades ainda n
 Antes de executar o projeto, tenha instalado:
 
 - JDK 21;
+- Maven, caso o projeto não possua Maven Wrapper;
+- acesso ao PostgreSQL hospedado no Aiven;
+- Redis acessível pela API.
 - PostgreSQL acessível pela aplicação (local ou hospedado);
 - Docker em execução apenas para os testes de integração com Testcontainers.
 
@@ -34,6 +39,8 @@ API_PORT=8080
 DB_URL=jdbc:postgresql://SEU_HOST:SUA_PORTA/SEU_BANCO
 DB_USERNAME=SEU_USUARIO
 DB_PASSWORD=SUA_SENHA
+REDIS_URL=redis://localhost:6379
+CORS_ALLOWED_ORIGINS=http://localhost:5173
 JPA_DDL_AUTO=update
 ```
 
@@ -55,6 +62,8 @@ API_PORT=8080
 DB_URL=jdbc:postgresql://SEU_HOST:SUA_PORTA/SEU_BANCO
 DB_USERNAME=SEU_USUARIO
 DB_PASSWORD=SUA_SENHA
+REDIS_URL=redis://localhost:6379
+CORS_ALLOWED_ORIGINS=http://localhost:5173
 JPA_DDL_AUTO=update
 ```
 
@@ -62,6 +71,10 @@ JPA_DDL_AUTO=update
 
 ## Configuração da aplicação
 
+A aplicação lê a conexão PostgreSQL e Redis do ambiente. O Flyway aplica as
+migrações e o Hibernate valida o esquema; não use `ddl-auto=update` em produção.
+Veja [segurança, Redis e migrações](docs/security-redis.md) para a configuração
+completa.
 O arquivo `src/main/resources/application.yaml` já contém a configuração abaixo:
 
 ```yaml

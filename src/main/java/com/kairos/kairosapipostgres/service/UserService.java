@@ -10,6 +10,8 @@ import com.kairos.kairosapipostgres.mapper.UserMapper;
 import com.kairos.kairosapipostgres.model.User;
 import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.repository.UserRepository;
+import com.kairos.kairosapipostgres.repository.CustomerRepository;
+import com.kairos.kairosapipostgres.repository.EmployeeRepository;
 import com.kairos.kairosapipostgres.utils.CpfFormatter;
 import com.kairos.kairosapipostgres.utils.CpfValidator;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,10 +27,15 @@ public class UserService {
 
     private final UserRepository repository;
     private final PasswordEncoder passwordEncoder;
+    private final CustomerRepository customers;
+    private final EmployeeRepository employees;
 
-    public UserService(UserRepository repository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository repository, PasswordEncoder passwordEncoder,
+                       CustomerRepository customers, EmployeeRepository employees) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
+        this.customers = customers;
+        this.employees = employees;
     }
 
     @Transactional
@@ -71,6 +78,8 @@ public class UserService {
     public boolean deleteById (Long id) {
         repository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
+        customers.findByUserId(id).ifPresent(customers::delete);
+        employees.findByUserId(id).ifPresent(employees::delete);
         repository.deleteById(id);
         return true;
     }

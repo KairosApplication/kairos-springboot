@@ -4,6 +4,7 @@ import com.kairos.kairosapipostgres.dto.request.UserRequest;
 import com.kairos.kairosapipostgres.dto.request.UserUpdateRequest;
 import com.kairos.kairosapipostgres.dto.response.UserResponse;
 import com.kairos.kairosapipostgres.service.UserService;
+import com.kairos.kairosapipostgres.service.CustomerRegistrationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,9 +18,11 @@ import java.util.Optional;
 public class UserController {
 
     private final UserService userService;
+    private final CustomerRegistrationService registrationService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, CustomerRegistrationService registrationService) {
         this.userService = userService;
+        this.registrationService = registrationService;
     }
 
     @PostMapping("/registration")
@@ -27,7 +30,7 @@ public class UserController {
             @Valid @RequestBody UserRequest request
     ) {
 
-        UserResponse cliente = userService.save(request);
+        UserResponse cliente = registrationService.register(request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)

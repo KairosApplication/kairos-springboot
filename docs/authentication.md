@@ -23,12 +23,10 @@ Os erros de login não informam se o e-mail existe. As respostas de autenticaç�
 não retornam senha ou hash. Erros de autenticação/autorização usam status HTTP,
 sem redirecionamento HTML.
 
-O GET de login apenas prepara o token CSRF: não autentica o usuário nem retorna
-seus dados. Também são públicos `POST /api/v1/users/registration`, `/health`,
-`/v3/api-docs/**` e as rotas do Swagger UI. O cadastro público de usuário,
-por ser um POST, exige CSRF válido. Acesso a rotas protegidas sem sessão retorna
-`401`; uma sessão sem permissão retorna `403`. Métodos que alteram estado sem
-CSRF válido retornam `403`, inclusive o login.
+A URL de login e o cadastro de usuário são as URLs públicas de negócio: o GET nela apenas prepara o
+token CSRF. Não autentica o usuário nem retorna seus dados. Acesso a rotas
+protegidas sem sessão retorna `401`; uma sessão sem permissão retorna `403`.
+Métodos que alteram estado sem CSRF válido retornam `403`, inclusive o login.
 
 ## Fluxo no frontend
 

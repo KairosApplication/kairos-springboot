@@ -31,14 +31,14 @@ class CategoryControllerIntegrationTest {
 
     @Test
     void shouldRunCrudAndUpdateSameRecord() throws Exception {
-        mockMvc.perform(post("/api/v1/categories/registration").with(user("tester")).with(csrf())
+        mockMvc.perform(post("/api/v1/categories/registration").with(user("tester").roles("MANAGER")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"category\":\"Bebidas\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.category").value("Bebidas"))
                 .andExpect(jsonPath("$.categoria").doesNotExist());
         Long id = repository.findByCategory("Bebidas").orElseThrow().getId();
         long count = repository.count();
-        mockMvc.perform(patch("/api/v1/categories/update/{id}", id).with(user("tester")).with(csrf())
+        mockMvc.perform(patch("/api/v1/categories/update/{id}", id).with(user("tester").roles("MANAGER")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"category\":\"Alimentos\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
@@ -46,24 +46,24 @@ class CategoryControllerIntegrationTest {
         repository.flush();
         assertThat(repository.count()).isEqualTo(count);
         assertThat(repository.findById(id).orElseThrow().getCategory()).isEqualTo("Alimentos");
-        mockMvc.perform(get("/api/v1/categories/find/{id}", id).with(user("tester")))
+        mockMvc.perform(get("/api/v1/categories/find/{id}", id).with(user("tester").roles("MANAGER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.category").value("Alimentos"));
-        mockMvc.perform(get("/api/v1/categories/list").with(user("tester")))
+        mockMvc.perform(get("/api/v1/categories/list").with(user("tester").roles("MANAGER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].category").value("Alimentos"));
-        mockMvc.perform(delete("/api/v1/categories/delete/{id}", id).with(user("tester")).with(csrf()))
+        mockMvc.perform(delete("/api/v1/categories/delete/{id}", id).with(user("tester").roles("MANAGER")).with(csrf()))
                 .andExpect(status().isNoContent());
         assertThat(repository.existsById(id)).isFalse();
     }
 
     @Test
     void shouldReturnNotFoundAndConflict() throws Exception {
-        mockMvc.perform(get("/api/v1/categories/find/{id}", -1L).with(user("tester")))
+        mockMvc.perform(get("/api/v1/categories/find/{id}", -1L).with(user("tester").roles("MANAGER")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Category not found"));
         repository.saveAndFlush(new Category(null, "Bebidas"));
-        mockMvc.perform(post("/api/v1/categories/registration").with(user("tester")).with(csrf())
+        mockMvc.perform(post("/api/v1/categories/registration").with(user("tester").roles("MANAGER")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"category\":\"Bebidas\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Category already exists"));
@@ -72,7 +72,7 @@ class CategoryControllerIntegrationTest {
     @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"category\":null}", "{\"category\":\"\"}", "{\"category\":\"   \"}"})
     void shouldRejectRegistrationWithoutCategoryName(String body) throws Exception {
-        mockMvc.perform(post("/api/v1/categories/registration").with(user("tester")).with(csrf())
+        mockMvc.perform(post("/api/v1/categories/registration").with(user("tester").roles("MANAGER")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.validationErrors.category").value("Categoria é obrigatória"));
@@ -85,7 +85,7 @@ class CategoryControllerIntegrationTest {
     void shouldRejectUpdateWithoutCategoryName(String body) throws Exception {
         Category category = repository.saveAndFlush(new Category(null, "Bebidas"));
 
-        mockMvc.perform(patch("/api/v1/categories/update/{id}", category.getId()).with(user("tester")).with(csrf())
+        mockMvc.perform(patch("/api/v1/categories/update/{id}", category.getId()).with(user("tester").roles("MANAGER")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.validationErrors.category").value("Categoria é obrigatória"));
@@ -97,7 +97,7 @@ class CategoryControllerIntegrationTest {
     void shouldAllowUpdatingCategoryWithItsCurrentName() throws Exception {
         Category category = repository.saveAndFlush(new Category(null, "Bebidas"));
 
-        mockMvc.perform(patch("/api/v1/categories/update/{id}", category.getId()).with(user("tester")).with(csrf())
+        mockMvc.perform(patch("/api/v1/categories/update/{id}", category.getId()).with(user("tester").roles("MANAGER")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"category\":\"Bebidas\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(category.getId()))
@@ -112,7 +112,7 @@ class CategoryControllerIntegrationTest {
         Category category = repository.saveAndFlush(new Category(null, "Bebidas"));
         repository.saveAndFlush(new Category(null, "Alimentos"));
 
-        mockMvc.perform(patch("/api/v1/categories/update/{id}", category.getId()).with(user("tester")).with(csrf())
+        mockMvc.perform(patch("/api/v1/categories/update/{id}", category.getId()).with(user("tester").roles("MANAGER")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"category\":\"Alimentos\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Category already exists"));
@@ -123,12 +123,12 @@ class CategoryControllerIntegrationTest {
 
     @Test
     void shouldReturnNotFoundWhenUpdatingOrDeletingMissingCategory() throws Exception {
-        mockMvc.perform(patch("/api/v1/categories/update/{id}", -1L).with(user("tester")).with(csrf())
+        mockMvc.perform(patch("/api/v1/categories/update/{id}", -1L).with(user("tester").roles("MANAGER")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"category\":\"Bebidas\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Category not found"));
 
-        mockMvc.perform(delete("/api/v1/categories/delete/{id}", -1L).with(user("tester")).with(csrf()))
+        mockMvc.perform(delete("/api/v1/categories/delete/{id}", -1L).with(user("tester").roles("MANAGER")).with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Category not found"));
     }
