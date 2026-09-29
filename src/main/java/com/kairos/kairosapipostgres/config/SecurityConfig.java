@@ -71,6 +71,8 @@ public class SecurityConfig {
                         .hasAnyRole("MANAGER", "EMPLOYEE")
                         .requestMatchers("/api/v1/inventories/**")
                         .hasRole("MANAGER")
+                        .requestMatchers("/api/v1/restockings/**")
+                        .hasAnyRole("MANAGER", "EMPLOYEE")
 
                         .requestMatchers("/api/v1/categories/**").authenticated()
                         .requestMatchers("/api/v1/sectors/**").authenticated()
