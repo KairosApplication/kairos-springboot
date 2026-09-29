@@ -12,6 +12,10 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(PurchaseNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handlePurchaseNotFound(PurchaseNotFoundException exception) {
+        return response(HttpStatus.NOT_FOUND, exception.getMessage(), Map.of());
+    }
     @ExceptionHandler(AlertNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleAlertNotFound(AlertNotFoundException exception) {
         return response(HttpStatus.NOT_FOUND, exception.getMessage(), Map.of());
