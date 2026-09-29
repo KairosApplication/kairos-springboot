@@ -5,4 +5,8 @@
         <Class name="~com\.kairos\.kairosapipostgres\.(controller|service)\..*"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
+    <Match>
+        <Class name="com.kairos.kairosapipostgres.config.PostgresAuditInitializer"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
 </FindBugsFilter>
