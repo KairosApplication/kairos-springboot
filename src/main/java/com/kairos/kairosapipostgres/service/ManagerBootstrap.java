@@ -3,7 +3,6 @@ package com.kairos.kairosapipostgres.service;
 import com.kairos.kairosapipostgres.dto.request.UserRequest;
 import com.kairos.kairosapipostgres.dto.response.UserResponse;
 import com.kairos.kairosapipostgres.model.Employee;
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.model.enums.Position;
 import com.kairos.kairosapipostgres.repository.EmployeeRepository;
 import com.kairos.kairosapipostgres.repository.UserRepository;
@@ -27,7 +26,6 @@ public class ManagerBootstrap implements ApplicationRunner {
     private final String name;
     private final String lastName;
     private final String birthDate;
-    private final String zipCode;
 
     public ManagerBootstrap(UserService users, UserRepository userRepository,
                             EmployeeRepository employees,
@@ -36,8 +34,7 @@ public class ManagerBootstrap implements ApplicationRunner {
                             @Value("${BOOTSTRAP_MANAGER_CPF:}") String cpf,
                             @Value("${BOOTSTRAP_MANAGER_NAME:}") String name,
                             @Value("${BOOTSTRAP_MANAGER_LAST_NAME:}") String lastName,
-                            @Value("${BOOTSTRAP_MANAGER_BIRTH_DATE:}") String birthDate,
-                            @Value("${BOOTSTRAP_MANAGER_ZIP_CODE:}") String zipCode) {
+                            @Value("${BOOTSTRAP_MANAGER_BIRTH_DATE:}") String birthDate) {
         this.users = users;
         this.userRepository = userRepository;
         this.employees = employees;
@@ -47,7 +44,6 @@ public class ManagerBootstrap implements ApplicationRunner {
         this.name = name;
         this.lastName = lastName;
         this.birthDate = birthDate;
-        this.zipCode = zipCode;
     }
 
     @Override
@@ -60,15 +56,14 @@ public class ManagerBootstrap implements ApplicationRunner {
             return;
         }
         if (password.isBlank() || !CpfValidator.isValid(cpf) || name.isBlank()
-                || lastName.isBlank() || birthDate.isBlank() || zipCode.isBlank()) {
+                || lastName.isBlank() || birthDate.isBlank()) {
             throw new IllegalStateException("Bootstrap manager configuration is incomplete");
         }
         if (userRepository.existsByEmail(email)) {
             throw new IllegalStateException("Bootstrap manager email is already registered");
         }
         UserRequest request = new UserRequest(name, lastName,
-                LocalDate.parse(birthDate), password, zipCode,
-                Plan.STANDART, email, cpf);
+                LocalDate.parse(birthDate), password, email, cpf);
         UserResponse created = users.save(request);
         employees.save(new Employee(null, Position.MANAGER,
                 userRepository.getReferenceById(created.id())));

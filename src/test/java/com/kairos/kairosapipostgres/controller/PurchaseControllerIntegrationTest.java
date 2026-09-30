@@ -1,7 +1,6 @@
 package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.*;
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.model.enums.PurchaseStatus;
 import com.kairos.kairosapipostgres.repository.*;
 import org.junit.jupiter.api.Test;
@@ -35,13 +34,13 @@ class PurchaseControllerIntegrationTest {
     @Test
     void shouldCalculateTotalFromPurchaseItems() throws Exception {
         User account = users.saveAndFlush(new User(null, "Ana", "Silva", LocalDate.of(2000, 1, 1),
-                "12345678909", "ana.purchase@example.com", "password", "12345678", Plan.STANDART));
+                "12345678909", "ana.purchase@example.com", "password"));
         Customer customer = customers.saveAndFlush(new Customer(null, account));
         Category category = categories.saveAndFlush(new Category(null, "Food"));
         Product product = products.saveAndFlush(new Product(null, "Brand", BigDecimal.TEN, "Rice", category));
         Purchase purchase = purchases.saveAndFlush(new Purchase(null, customer, LocalDateTime.now(),
                 PurchaseStatus.COMPLETED));
-        purchaseProducts.saveAndFlush(new PurchaseProduct(null, product, purchase, 3, null,
+        purchaseProducts.saveAndFlush(new PurchaseProduct(null, product, purchase, 3,
                 new BigDecimal("9.90")));
 
         mvc.perform(get("/api/v1/purchases/{id}/total", purchase.getId())

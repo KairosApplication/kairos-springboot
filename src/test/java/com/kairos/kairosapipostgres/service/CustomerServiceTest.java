@@ -7,7 +7,6 @@ import com.kairos.kairosapipostgres.exception.CustomerNotFoundException;
 import com.kairos.kairosapipostgres.exception.UserNotFoundException;
 import com.kairos.kairosapipostgres.model.Customer;
 import com.kairos.kairosapipostgres.model.User;
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.repository.CustomerRepository;
 import com.kairos.kairosapipostgres.repository.ProductRepository;
 import com.kairos.kairosapipostgres.repository.UserRepository;
@@ -167,9 +166,7 @@ class CustomerServiceTest {
                 LocalDate.of(2000, 2, 12),
                 "52998224725",
                 "dias@example.com",
-                "encoded-password",
-                "01310-100",
-                Plan.STANDART
+                "encoded-password"
         );
     }
 }

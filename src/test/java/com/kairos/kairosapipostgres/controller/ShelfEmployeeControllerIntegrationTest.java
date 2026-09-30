@@ -1,7 +1,6 @@
 package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.*;
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.model.enums.Position;
 import com.kairos.kairosapipostgres.repository.*;
 import org.junit.jupiter.api.Test;
@@ -37,7 +36,7 @@ class ShelfEmployeeControllerIntegrationTest {
     @Test
     void shouldAssignMoveAndRemoveEmployeeFromShelf() throws Exception {
         User user = users.saveAndFlush(new User(null, "Davi", "Dias", LocalDate.of(2000, 2, 12),
-                "52998224725", "davi@example.com", "hash", "01310-100", Plan.STANDART));
+                "52998224725", "davi@example.com", "hash"));
         Employee employee = employees.saveAndFlush(new Employee(null, Position.STOCKER, user));
         Sector sector = sectors.saveAndFlush(new Sector(null, "Estoque", "Operacional"));
         Aisle aisle = aisles.saveAndFlush(new Aisle(null, sector, 1));
