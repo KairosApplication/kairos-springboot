@@ -1,7 +1,6 @@
 package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.*;
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.model.enums.Position;
 import com.kairos.kairosapipostgres.repository.*;
 import org.junit.jupiter.api.Test;
@@ -45,7 +44,7 @@ class RestockingControllerIntegrationTest {
         Shelf shelf = shelves.saveAndFlush(new Shelf(null, aisle, 100));
         Inventory inventory = inventories.saveAndFlush(new Inventory(null, sector));
         User employeeUser = users.saveAndFlush(new User(null, "Davi", "Dias", LocalDate.of(2000, 2, 12),
-                "52998224725", "davi@example.com", "hash", "01310-100", Plan.STANDART));
+                "52998224725", "davi@example.com", "hash"));
         Employee employee = employees.saveAndFlush(new Employee(null, Position.STOCKER, employeeUser));
         Category category = categories.saveAndFlush(new Category(null, "Alimentos"));
         Product product = products.saveAndFlush(new Product(null, "Marca", BigDecimal.TEN, "Arroz", category));

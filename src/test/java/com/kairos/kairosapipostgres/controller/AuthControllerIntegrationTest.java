@@ -3,7 +3,6 @@ package com.kairos.kairosapipostgres.controller;
 import com.kairos.kairosapipostgres.model.Customer;
 import com.kairos.kairosapipostgres.model.Employee;
 import com.kairos.kairosapipostgres.model.User;
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.model.enums.Position;
 import com.kairos.kairosapipostgres.repository.CustomerRepository;
 import com.kairos.kairosapipostgres.repository.EmployeeRepository;
@@ -57,8 +56,6 @@ class AuthControllerIntegrationTest {
                           "lastName": "Dias",
                           "birthDate": "2000-02-12",
                           "password": "password-123",
-                          "zipCode": "01310-100",
-                          "plan": "STANDART",
                           "email": "newcustomer@example.com",
                           "cpf": "11144477735"
                         }
@@ -242,7 +239,7 @@ class AuthControllerIntegrationTest {
 
     private User createUser(String email) {
         return users.saveAndFlush(new User(null, "Ana", "Silva", LocalDate.of(2000, 1, 1),
-                Long.toString(CPF_SEQUENCE.getAndIncrement()), email, passwordEncoder.encode(PASSWORD), "01310-100", Plan.STANDART));
+                Long.toString(CPF_SEQUENCE.getAndIncrement()), email, passwordEncoder.encode(PASSWORD)));
     }
 
     private String employeeRequest(String email) {
@@ -253,8 +250,6 @@ class AuthControllerIntegrationTest {
                     "lastName": "Dias",
                     "birthDate": "2000-02-12",
                     "password": "password-123",
-                    "zipCode": "01310-100",
-                    "plan": "STANDART",
                     "email": "%s",
                     "cpf": "11144477735"
                   },

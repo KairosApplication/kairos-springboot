@@ -30,6 +30,21 @@ Antes de executar o projeto, tenha instalado:
 
 O repositório inclui Maven Wrapper (`mvnw` e `mvnw.cmd`), então não é necessário instalar Maven separadamente.
 
+## Redis local com Docker
+
+Com o Docker em execução, inicie somente o Redis:
+
+```sh
+docker compose up -d redis
+docker compose exec redis redis-cli ping
+```
+
+O segundo comando deve retornar `PONG`. O Redis fica acessível apenas na máquina local em `127.0.0.1:6379`, compatível com `REDIS_URL=redis://localhost:6379` da API. Para parar:
+
+```sh
+docker compose down
+```
+
 ## Variáveis de ambiente
 
 Na raiz do projeto, copie `.env.example` para `.env` e preencha os dados do seu PostgreSQL:

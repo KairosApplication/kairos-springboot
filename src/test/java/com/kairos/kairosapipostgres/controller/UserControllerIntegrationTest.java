@@ -68,7 +68,6 @@ class UserControllerIntegrationTest {
         assertThat(customers.existsByUserId(saved.getId())).isTrue();
         assertThat(saved.getLastName()).isEqualTo("Silva");
         assertThat(saved.getBirthDate()).hasToString("1995-05-20");
-        assertThat(saved.getZipCode()).isEqualTo("01310-100");
         assertThat(saved.getCpf()).isEqualTo("52998224725");
         assertThat(passwordEncoder.matches("secret", saved.getPassword())).isTrue();
     }
@@ -128,7 +127,6 @@ class UserControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "plan": "CORPORATIVO",
                                   "email": "new@example.com",
                                   "cpf": "111.444.777-35"
                                 }
@@ -158,8 +156,6 @@ class UserControllerIntegrationTest {
                   "lastName": "Silva",
                   "birthDate": "1995-05-20",
                   "password": "secret",
-                  "zipCode": "01310-100",
-                  "plan": "STANDART",
                   "email": "ana@example.com",
                   "cpf": "529.982.247-25"
                 }

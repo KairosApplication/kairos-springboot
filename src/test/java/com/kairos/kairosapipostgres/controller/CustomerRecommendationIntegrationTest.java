@@ -1,7 +1,6 @@
 package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.*;
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.model.enums.PurchaseStatus;
 import com.kairos.kairosapipostgres.repository.*;
 import org.junit.jupiter.api.Test;
@@ -34,7 +33,7 @@ class CustomerRecommendationIntegrationTest {
     @Test
     void shouldRecommendUnpurchasedProductsInMostPurchasedCategories() throws Exception {
         User account = users.saveAndFlush(new User(null, "Ana", "Silva", LocalDate.of(2000, 1, 1),
-                "12345678909", "ana.recommend@example.com", "password", "12345678", Plan.STANDART));
+                "12345678909", "ana.recommend@example.com", "password"));
         Customer customer = customers.saveAndFlush(new Customer(null, account));
         Category food = categories.saveAndFlush(new Category(null, "Food"));
         Category cleaning = categories.saveAndFlush(new Category(null, "Cleaning"));
@@ -76,7 +75,7 @@ class CustomerRecommendationIntegrationTest {
     }
 
     private void item(Purchase purchase, Product product, int quantity) {
-        purchaseProducts.saveAndFlush(new PurchaseProduct(null, product, purchase, quantity, null,
+        purchaseProducts.saveAndFlush(new PurchaseProduct(null, product, purchase, quantity,
                 BigDecimal.TEN));
     }
 }

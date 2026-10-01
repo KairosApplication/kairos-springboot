@@ -144,8 +144,6 @@ class EmployeeControllerIntegrationTest {
                     "lastName": "Dias",
                     "birthDate": "2000-02-12",
                     "password": "password-123",
-                    "zipCode": "01310-100",
-                    "plan": "STANDART",
                     "email": "dias@example.com",
                     "cpf": "52998224725"
                   },

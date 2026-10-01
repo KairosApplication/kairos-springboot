@@ -4,7 +4,6 @@ import com.kairos.kairosapipostgres.dto.request.CustomerRequest;
 import com.kairos.kairosapipostgres.dto.response.CustomerResponse;
 import com.kairos.kairosapipostgres.model.Customer;
 import com.kairos.kairosapipostgres.model.User;
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -45,9 +44,7 @@ class CustomerMapperTest {
                 LocalDate.of(2000, 2, 12),
                 "52998224725",
                 "dias@example.com",
-                "encoded-password",
-                "01310-100",
-                Plan.STANDART
+                "encoded-password"
         );
     }
 }
