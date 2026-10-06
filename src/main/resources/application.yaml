@@ -18,9 +18,10 @@ spring:
         enabled: false
       url: ${REDIS_URL:redis://localhost:6379}
   session:
-    timeout: 30m
-    redis:
-      namespace: kairos:session
+    timeout: 15d
+    data:
+      redis:
+        namespace: kairos:session
   cache:
     type: redis
     cache-names: categories

@@ -6,6 +6,8 @@ import com.kairos.kairosapipostgres.exception.CustomerAlreadyExistsException;
 import com.kairos.kairosapipostgres.exception.CustomerNotFoundException;
 import com.kairos.kairosapipostgres.exception.UserNotFoundException;
 import com.kairos.kairosapipostgres.model.Customer;
+import com.kairos.kairosapipostgres.model.Company;
+import com.kairos.kairosapipostgres.repository.CompanyRepository;
 import com.kairos.kairosapipostgres.model.User;
 import com.kairos.kairosapipostgres.repository.CustomerRepository;
 import com.kairos.kairosapipostgres.repository.ProductRepository;
@@ -42,11 +44,13 @@ class CustomerServiceTest {
     @Mock
     private ProductRepository productRepository;
 
+    @Mock private CompanyRepository companyRepository;
+
     private CustomerService service;
 
     @BeforeEach
     void setUp() {
-        service = new CustomerService(customerRepository, userRepository, productRepository);
+        service = new CustomerService(customerRepository, userRepository, productRepository, companyRepository);
     }
 
     @Test
@@ -54,13 +58,14 @@ class CustomerServiceTest {
         User user = user(10L);
         when(userRepository.findById(10L)).thenReturn(Optional.of(user));
         when(customerRepository.existsByUserId(10L)).thenReturn(false);
+        when(companyRepository.findById(1L)).thenReturn(Optional.of(company()));
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> {
             Customer saved = invocation.getArgument(0);
             saved.setId(1L);
             return saved;
         });
 
-        CustomerResponse response = service.save(new CustomerRequest(10L));
+        CustomerResponse response = service.save(new CustomerRequest(10L, 1L));
 
         assertThat(response).isEqualTo(new CustomerResponse(1L, 10L, "Davi"));
         verify(customerRepository).save(any(Customer.class));
@@ -70,7 +75,7 @@ class CustomerServiceTest {
     void shouldRejectCustomerWhenUserDoesNotExist() {
         when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.save(new CustomerRequest(99L)))
+        assertThatThrownBy(() -> service.save(new CustomerRequest(99L, 1L)))
                 .isInstanceOf(UserNotFoundException.class)
                 .hasMessage("User not found");
         verify(customerRepository, never()).existsByUserId(any());
@@ -83,7 +88,7 @@ class CustomerServiceTest {
         when(userRepository.findById(10L)).thenReturn(Optional.of(user));
         when(customerRepository.existsByUserId(10L)).thenReturn(true);
 
-        assertThatThrownBy(() -> service.save(new CustomerRequest(10L)))
+        assertThatThrownBy(() -> service.save(new CustomerRequest(10L, 1L)))
                 .isInstanceOf(CustomerAlreadyExistsException.class)
                 .hasMessage("Customer already exists for this user");
         verify(customerRepository, never()).save(any());
@@ -155,7 +160,11 @@ class CustomerServiceTest {
     }
 
     private Customer customer(Long id, Long userId) {
-        return new Customer(id, user(userId));
+        return new Customer(id, user(userId), company());
+    }
+
+    private Company company() {
+        return new Company(1L, "Test", "12345678000199", "company@example.com", "BASIC");
     }
 
     private User user(Long id) {

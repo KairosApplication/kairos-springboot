@@ -3,6 +3,7 @@ package com.kairos.kairosapipostgres.mapper;
 import com.kairos.kairosapipostgres.dto.request.CustomerRequest;
 import com.kairos.kairosapipostgres.dto.response.CustomerResponse;
 import com.kairos.kairosapipostgres.model.Customer;
+import com.kairos.kairosapipostgres.model.Company;
 import com.kairos.kairosapipostgres.model.User;
 import org.junit.jupiter.api.Test;
 
@@ -15,17 +16,19 @@ class CustomerMapperTest {
     @Test
     void shouldMapRequestAndUserToEntity() {
         User user = user(10L);
-        CustomerRequest request = new CustomerRequest(10L);
+        CustomerRequest request = new CustomerRequest(10L, 1L);
+        Company company = new Company(1L, "Test", "12345678000199", "company@example.com", "BASIC");
 
-        Customer customer = CustomerMapper.toEntity(request, user);
+        Customer customer = CustomerMapper.toEntity(request, user, company);
 
         assertThat(customer.getId()).isNull();
         assertThat(customer.getUser()).isSameAs(user);
+        assertThat(customer.getCompany()).isSameAs(company);
     }
 
     @Test
     void shouldMapEntityToResponse() {
-        Customer customer = new Customer(7L, user(10L));
+        Customer customer = new Customer(7L, user(10L), null);
 
         CustomerResponse response = CustomerMapper.toResponse(customer);
 

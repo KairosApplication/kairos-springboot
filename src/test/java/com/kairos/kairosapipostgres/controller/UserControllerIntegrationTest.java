@@ -1,6 +1,8 @@
 package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.User;
+import com.kairos.kairosapipostgres.TestCompanyFactory;
+import com.kairos.kairosapipostgres.repository.CompanyRepository;
 import com.kairos.kairosapipostgres.repository.UserRepository;
 import com.kairos.kairosapipostgres.repository.CustomerRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,6 +13,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,9 +43,13 @@ class UserControllerIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired private CompanyRepository companies;
+    private Long companyId;
+
     @BeforeEach
     void cleanDatabase() {
         repository.deleteAll();
+        companyId = TestCompanyFactory.create(companies).getId();
     }
 
     @Test
@@ -70,6 +77,40 @@ class UserControllerIntegrationTest {
         assertThat(saved.getBirthDate()).hasToString("1995-05-20");
         assertThat(saved.getCpf()).isEqualTo("52998224725");
         assertThat(passwordEncoder.matches("secret", saved.getPassword())).isTrue();
+    }
+
+    @Test
+    void shouldRejectMissingCompanyWithoutCreatingUser() throws Exception {
+        mockMvc.perform(post("/api/v1/users/registration").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRegistration().replace("\"companyId\": " + companyId, "\"companyId\": null")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.validationErrors.companyId").value("A empresa é obrigatória"));
+        assertThat(repository.findByEmail("ana@example.com")).isEmpty();
+    }
+
+    @Test
+    void shouldRejectUnknownCompanyWithoutCreatingUser() throws Exception {
+        mockMvc.perform(post("/api/v1/users/registration").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRegistration().replace("\"companyId\": " + companyId,
+                                "\"companyId\": 2147483647")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Company not found"));
+        assertThat(repository.findByEmail("ana@example.com")).isEmpty();
+    }
+
+    @Test
+    void shouldPreserveAuthenticatedManagerWhenRegisteringCustomer() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        mockMvc.perform(post("/api/v1/users/registration").session(session)
+                        .with(user("manager@example.com").roles("MANAGER")).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(validRegistration()))
+                .andExpect(status().isCreated());
+        mockMvc.perform(get("/api/v1/auth/me").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("manager@example.com"))
+                .andExpect(jsonPath("$.roles[0]").value("MANAGER"));
     }
 
     @Test
@@ -157,8 +198,9 @@ class UserControllerIntegrationTest {
                   "birthDate": "1995-05-20",
                   "password": "secret",
                   "email": "ana@example.com",
-                  "cpf": "529.982.247-25"
+                  "cpf": "529.982.247-25",
+                  "companyId": %d
                 }
-                """;
+                """.formatted(companyId);
     }
 }

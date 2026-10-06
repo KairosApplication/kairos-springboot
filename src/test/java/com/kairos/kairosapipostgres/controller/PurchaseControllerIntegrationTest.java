@@ -1,6 +1,7 @@
 package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.*;
+import com.kairos.kairosapipostgres.TestCompanyFactory;
 import com.kairos.kairosapipostgres.model.enums.PurchaseStatus;
 import com.kairos.kairosapipostgres.repository.*;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ class PurchaseControllerIntegrationTest {
     @Autowired private MockMvc mvc;
     @Autowired private UserRepository users;
     @Autowired private CustomerRepository customers;
+    @Autowired private CompanyRepository companies;
     @Autowired private CategoryRepository categories;
     @Autowired private ProductRepository products;
     @Autowired private PurchaseRepository purchases;
@@ -35,7 +37,7 @@ class PurchaseControllerIntegrationTest {
     void shouldCalculateTotalFromPurchaseItems() throws Exception {
         User account = users.saveAndFlush(new User(null, "Ana", "Silva", LocalDate.of(2000, 1, 1),
                 "12345678909", "ana.purchase@example.com", "password"));
-        Customer customer = customers.saveAndFlush(new Customer(null, account));
+        Customer customer = customers.saveAndFlush(new Customer(null, account, TestCompanyFactory.create(companies)));
         Category category = categories.saveAndFlush(new Category(null, "Food"));
         Product product = products.saveAndFlush(new Product(null, "Brand", BigDecimal.TEN, "Rice", category));
         Purchase purchase = purchases.saveAndFlush(new Purchase(null, customer, LocalDateTime.now(),

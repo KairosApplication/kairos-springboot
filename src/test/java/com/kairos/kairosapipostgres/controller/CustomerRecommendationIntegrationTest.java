@@ -1,6 +1,7 @@
 package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.*;
+import com.kairos.kairosapipostgres.TestCompanyFactory;
 import com.kairos.kairosapipostgres.model.enums.PurchaseStatus;
 import com.kairos.kairosapipostgres.repository.*;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,7 @@ class CustomerRecommendationIntegrationTest {
     @Autowired private MockMvc mvc;
     @Autowired private UserRepository users;
     @Autowired private CustomerRepository customers;
+    @Autowired private CompanyRepository companies;
     @Autowired private CategoryRepository categories;
     @Autowired private ProductRepository products;
     @Autowired private PurchaseRepository purchases;
@@ -34,7 +36,7 @@ class CustomerRecommendationIntegrationTest {
     void shouldRecommendUnpurchasedProductsInMostPurchasedCategories() throws Exception {
         User account = users.saveAndFlush(new User(null, "Ana", "Silva", LocalDate.of(2000, 1, 1),
                 "12345678909", "ana.recommend@example.com", "password"));
-        Customer customer = customers.saveAndFlush(new Customer(null, account));
+        Customer customer = customers.saveAndFlush(new Customer(null, account, TestCompanyFactory.create(companies)));
         Category food = categories.saveAndFlush(new Category(null, "Food"));
         Category cleaning = categories.saveAndFlush(new Category(null, "Cleaning"));
         Product boughtFood = product("Rice", food);
