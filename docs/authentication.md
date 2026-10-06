@@ -9,6 +9,32 @@ O login usa o filtro de formulário do Spring Security. Ele cria a autenticaçã
 renova o identificador da sessão e preserva o contexto nas próximas requisições.
 HTTP Basic foi desabilitado. Não há JWT neste fluxo.
 
+A sessão fica no Redis e expira após 15 dias sem atividade. O cookie persistente
+`JSESSIONID` e o prazo no Redis são renovados nas chamadas autenticadas. Ao abrir
+o app com um cookie salvo, consulte `GET /api/v1/auth/me`: 200 permite continuar,
+401 exige novo login. O cookie identifica uma sessão específica; existir outra
+sessão no Redis não concede acesso.
+
+O cadastro público bem-sucedido também autentica o novo CUSTOMER e troca o ID
+da sessão e o CSRF. Se o cadastro for feito por alguém já autenticado, a sessão
+desse usuário é preservada. Depois de login ou cadastro anônimo, obtenha o novo
+CSRF em `GET /api/v1/auth/login`. O cadastro público exige `companyId` junto dos
+dados pessoais; a API valida a empresa antes de criar a conta. Exemplo:
+
+```json
+{
+  "name": "Ana",
+  "lastName": "Silva",
+  "birthDate": "2000-01-01",
+  "email": "ana@example.com",
+  "password": "senha-forte",
+  "cpf": "11144477735",
+  "companyId": 1
+}
+```
+
+Esse `companyId` deve apontar para uma empresa já existente no PostgreSQL.
+
 ## Endpoints
 
 | Método e rota | Entrada / resposta | Acesso |
