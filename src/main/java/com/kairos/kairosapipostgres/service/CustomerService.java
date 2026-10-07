@@ -12,6 +12,8 @@ import com.kairos.kairosapipostgres.model.User;
 import com.kairos.kairosapipostgres.repository.CustomerRepository;
 import com.kairos.kairosapipostgres.repository.ProductRepository;
 import com.kairos.kairosapipostgres.repository.UserRepository;
+import com.kairos.kairosapipostgres.repository.CompanyRepository;
+import com.kairos.kairosapipostgres.exception.CompanyNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -29,12 +31,14 @@ public class CustomerService {
 
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
+    private final CompanyRepository companyRepository;
 
     public CustomerService (CustomerRepository repository, UserRepository userRepository,
-                            ProductRepository productRepository) {
+                            ProductRepository productRepository, CompanyRepository companyRepository) {
         this.repository = repository;
         this.userRepository = userRepository;
         this.productRepository = productRepository;
+        this.companyRepository = companyRepository;
     }
 
     @Transactional
@@ -46,7 +50,9 @@ public class CustomerService {
             throw new CustomerAlreadyExistsException("Customer already exists for this user");
         }
 
-        Customer customer = CustomerMapper.toEntity(request, user);
+        var company = companyRepository.findById(request.companyId())
+                .orElseThrow(() -> new CompanyNotFoundException("Company not found"));
+        Customer customer = CustomerMapper.toEntity(request, user, company);
         return CustomerMapper.toResponse(repository.save(customer));
     }
 

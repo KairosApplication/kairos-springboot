@@ -8,7 +8,6 @@ import com.kairos.kairosapipostgres.exception.UserAlreadyExistsException;
 import com.kairos.kairosapipostgres.exception.UserNotFoundException;
 import com.kairos.kairosapipostgres.mapper.UserMapper;
 import com.kairos.kairosapipostgres.model.User;
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.repository.UserRepository;
 import com.kairos.kairosapipostgres.repository.CustomerRepository;
 import com.kairos.kairosapipostgres.repository.EmployeeRepository;
@@ -55,7 +54,6 @@ public class UserService {
         User userEntity = repository.findById (id).orElseThrow (() -> new UserNotFoundException ("User not found"));
         String cpfUnmasked = (user.cpf ()) != null ? CpfFormatter.removeFormatMask (user.cpf ()) : userEntity.getCpf();
         String email = (user.email ()) != null ? user.email().trim() : userEntity.getEmail();
-        Plan plan = (user.plan ()) != null ? user.plan () : userEntity.getPlan();
 
         repository.findByCpf(cpfUnmasked)
                 .filter(existing -> !existing.getId().equals(id))
@@ -70,7 +68,6 @@ public class UserService {
 
         userEntity.setCpf (cpfUnmasked);
         userEntity.setEmail (email);
-        userEntity.setPlan (plan);
         return Optional.of(UserMapper.toResponse(repository.save(userEntity)));
     }
 

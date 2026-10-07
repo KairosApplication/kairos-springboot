@@ -1,9 +1,10 @@
 package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.Customer;
+import com.kairos.kairosapipostgres.TestCompanyFactory;
+import com.kairos.kairosapipostgres.repository.CompanyRepository;
 import com.kairos.kairosapipostgres.model.Employee;
 import com.kairos.kairosapipostgres.model.User;
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.model.enums.Position;
 import com.kairos.kairosapipostgres.repository.CustomerRepository;
 import com.kairos.kairosapipostgres.repository.EmployeeRepository;
@@ -44,10 +45,13 @@ class AuthControllerIntegrationTest {
     @Autowired private CustomerRepository customers;
     @Autowired private EmployeeRepository employees;
     @Autowired private PasswordEncoder passwordEncoder;
+    @Autowired private CompanyRepository companies;
 
     @Test
-    void shouldLoginAfterPublicRegistration() throws Exception {
+    void shouldAuthenticateAfterPublicRegistrationAndRotateSessionAndCsrf() throws Exception {
         CsrfSession csrf = csrf(null);
+        String originalId = csrf.session().getId();
+        var company = TestCompanyFactory.create(companies);
         mvc.perform(post("/api/v1/users/registration").session(csrf.session())
                 .header(csrf.headerName(), csrf.token())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -57,30 +61,31 @@ class AuthControllerIntegrationTest {
                           "lastName": "Dias",
                           "birthDate": "2000-02-12",
                           "password": "password-123",
-                          "zipCode": "01310-100",
-                          "plan": "STANDART",
                           "email": "newcustomer@example.com",
-                          "cpf": "11144477735"
+                          "cpf": "11144477735",
+                          "companyId": %d
                         }
-                        """))
+                        """.formatted(company.getId())))
                 .andExpect(status().isCreated());
         User created = users.findByEmail("newcustomer@example.com").orElseThrow();
         assertThat(customers.existsByUserId(created.getId())).isTrue();
-
-        mvc.perform(post("/api/v1/auth/login").session(csrf.session())
-                .header(csrf.headerName(), csrf.token())
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .param("email", created.getEmail()).param("password", "password-123"))
-                .andExpect(status().isNoContent());
+        assertThat(csrf.session().getId()).isNotEqualTo(originalId);
         mvc.perform(get("/api/v1/auth/me").session(csrf.session()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roles[0]").value("CUSTOMER"));
+        mvc.perform(post("/api/v1/auth/logout").session(csrf.session())
+                .header(csrf.headerName(), csrf.token()))
+                .andExpect(status().isForbidden());
+        CsrfSession renewed = csrf(csrf.session());
+        mvc.perform(post("/api/v1/auth/logout").session(renewed.session())
+                .header(renewed.headerName(), renewed.token()))
+                .andExpect(status().isNoContent());
     }
 
     @Test
     void shouldLoginWithDatabaseCredentialsRotateSessionAndPreserveAuthentication() throws Exception {
         User user = createUser("customer@example.com");
-        customers.saveAndFlush(new Customer(null, user));
+        customers.saveAndFlush(new Customer(null, user, TestCompanyFactory.create(companies)));
         CsrfSession csrf = csrf(null);
         String originalId = csrf.session().getId();
 
@@ -112,7 +117,7 @@ class AuthControllerIntegrationTest {
     @ValueSource(strings = {"customer@example.com", "unknown@example.com", "unassigned@example.com"})
     void shouldRejectWrongCredentialsOrAccountWithoutProfile(String email) throws Exception {
         User customer = createUser("customer@example.com");
-        customers.saveAndFlush(new Customer(null, customer));
+        customers.saveAndFlush(new Customer(null, customer, TestCompanyFactory.create(companies)));
         createUser("unassigned@example.com");
         CsrfSession csrf = csrf(null);
         String password = email.equals("customer@example.com") ? "wrong-password" : PASSWORD;
@@ -166,7 +171,7 @@ class AuthControllerIntegrationTest {
     @Test
     void shouldRotateCsrfOnLoginAndInvalidateSessionOnLogout() throws Exception {
         User customer = createUser("customer@example.com");
-        customers.saveAndFlush(new Customer(null, customer));
+        customers.saveAndFlush(new Customer(null, customer, TestCompanyFactory.create(companies)));
         CsrfSession before = csrf(null);
         mvc.perform(post("/api/v1/auth/login").session(before.session())
                 .header(before.headerName(), before.token())
@@ -192,7 +197,7 @@ class AuthControllerIntegrationTest {
     @Test
     void shouldRejectAnonymousAccessAndBasicAuthentication() throws Exception {
         User customer = createUser("customer@example.com");
-        customers.saveAndFlush(new Customer(null, customer));
+        customers.saveAndFlush(new Customer(null, customer, TestCompanyFactory.create(companies)));
         mvc.perform(get("/api/v1/products/list"))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/products/list").with(httpBasic(customer.getEmail(), PASSWORD)))
@@ -242,7 +247,7 @@ class AuthControllerIntegrationTest {
 
     private User createUser(String email) {
         return users.saveAndFlush(new User(null, "Ana", "Silva", LocalDate.of(2000, 1, 1),
-                Long.toString(CPF_SEQUENCE.getAndIncrement()), email, passwordEncoder.encode(PASSWORD), "01310-100", Plan.STANDART));
+                Long.toString(CPF_SEQUENCE.getAndIncrement()), email, passwordEncoder.encode(PASSWORD)));
     }
 
     private String employeeRequest(String email) {
@@ -253,8 +258,6 @@ class AuthControllerIntegrationTest {
                     "lastName": "Dias",
                     "birthDate": "2000-02-12",
                     "password": "password-123",
-                    "zipCode": "01310-100",
-                    "plan": "STANDART",
                     "email": "%s",
                     "cpf": "11144477735"
                   },

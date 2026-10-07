@@ -1,7 +1,6 @@
 package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.*;
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.model.enums.Position;
 import com.kairos.kairosapipostgres.repository.*;
 import org.junit.jupiter.api.Test;
@@ -81,7 +80,7 @@ class EmployeeAisleControllerIntegrationTest {
 
     private Employee employee() {
         User user = users.saveAndFlush(new User(null, "Davi", "Dias", LocalDate.of(2000, 2, 12),
-                "52998224725", "davi@example.com", "hash", "01310-100", Plan.STANDART));
+                "52998224725", "davi@example.com", "hash"));
         return employees.saveAndFlush(new Employee(null, Position.STOCKER, user));
     }
 

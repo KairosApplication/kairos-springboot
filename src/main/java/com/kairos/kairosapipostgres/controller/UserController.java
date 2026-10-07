@@ -1,10 +1,13 @@
 package com.kairos.kairosapipostgres.controller;
 
-import com.kairos.kairosapipostgres.dto.request.UserRequest;
+import com.kairos.kairosapipostgres.dto.request.UserRegistrationRequest;
 import com.kairos.kairosapipostgres.dto.request.UserUpdateRequest;
 import com.kairos.kairosapipostgres.dto.response.UserResponse;
 import com.kairos.kairosapipostgres.service.UserService;
 import com.kairos.kairosapipostgres.service.CustomerRegistrationService;
+import com.kairos.kairosapipostgres.service.RegistrationSessionService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,18 +22,26 @@ public class UserController {
 
     private final UserService userService;
     private final CustomerRegistrationService registrationService;
+    private final RegistrationSessionService registrationSessionService;
 
-    public UserController(UserService userService, CustomerRegistrationService registrationService) {
+    public UserController(UserService userService, CustomerRegistrationService registrationService,
+                          RegistrationSessionService registrationSessionService) {
         this.userService = userService;
         this.registrationService = registrationService;
+        this.registrationSessionService = registrationSessionService;
     }
 
     @PostMapping("/registration")
     public ResponseEntity<UserResponse> register(
-            @Valid @RequestBody UserRequest request
+            @Valid @RequestBody UserRegistrationRequest request,
+            HttpServletRequest servletRequest,
+            HttpServletResponse servletResponse
     ) {
 
         UserResponse cliente = registrationService.register(request);
+        if (servletRequest.getUserPrincipal() == null) {
+            registrationSessionService.login(request.email(), request.password(), servletRequest, servletResponse);
+        }
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)

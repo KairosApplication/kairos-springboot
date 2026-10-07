@@ -55,6 +55,6 @@ class ManagerBootstrapTest {
     private ManagerBootstrap bootstrap(String email) {
         return new ManagerBootstrap(users, userRepository, employees, email,
                 "strong-password", "52998224725", "Maria", "Silva",
-                "1990-01-01", "01000-000");
+                "1990-01-01");
     }
 }

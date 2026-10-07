@@ -9,4 +9,10 @@
         <Class name="com.kairos.kairosapipostgres.config.PostgresAuditInitializer"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
+    <!-- The filter intentionally shares Spring Session's configured CookieSerializer. -->
+    <Match>
+        <Class name="com.kairos.kairosapipostgres.config.SessionCookieRenewalFilter"/>
+        <Method name="&lt;init&gt;"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
 </FindBugsFilter>

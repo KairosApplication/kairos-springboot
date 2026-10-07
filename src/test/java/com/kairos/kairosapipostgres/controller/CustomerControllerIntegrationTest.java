@@ -1,7 +1,8 @@
 package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.User;
-import com.kairos.kairosapipostgres.model.enums.Plan;
+import com.kairos.kairosapipostgres.TestCompanyFactory;
+import com.kairos.kairosapipostgres.repository.CompanyRepository;
 import com.kairos.kairosapipostgres.repository.CustomerRepository;
 import com.kairos.kairosapipostgres.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,10 +39,14 @@ class CustomerControllerIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired private CompanyRepository companies;
+    private Long companyId;
+
     @BeforeEach
     void cleanDatabase() {
         customerRepository.deleteAll();
         userRepository.deleteAll();
+        companyId = TestCompanyFactory.create(companies).getId();
     }
 
     @Test
@@ -128,9 +133,10 @@ class CustomerControllerIntegrationTest {
     private String request(Long userId) {
         return """
                 {
-                  "userId": %d
+                  "userId": %d,
+                  "companyId": %d
                 }
-                """.formatted(userId);
+                """.formatted(userId, companyId);
     }
 
     private User customerUser() {
@@ -141,9 +147,7 @@ class CustomerControllerIntegrationTest {
                 LocalDate.of(2000, 2, 12),
                 "52998224725",
                 "dias@example.com",
-                "encoded-password",
-                "01310-100",
-                Plan.STANDART
+                "encoded-password"
         );
     }
 }

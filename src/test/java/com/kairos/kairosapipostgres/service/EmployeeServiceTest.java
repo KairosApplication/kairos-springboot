@@ -10,7 +10,6 @@ import com.kairos.kairosapipostgres.exception.InvalidEmployeePositionException;
 import com.kairos.kairosapipostgres.exception.UserAlreadyExistsException;
 import com.kairos.kairosapipostgres.model.Employee;
 import com.kairos.kairosapipostgres.model.User;
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.model.enums.Position;
 import com.kairos.kairosapipostgres.repository.EmployeeRepository;
 import com.kairos.kairosapipostgres.repository.UserRepository;
@@ -169,7 +168,7 @@ class EmployeeServiceTest {
 
     private UserRequest userRequest() {
         return new UserRequest("Davi", "Dias", LocalDate.of(2000, 2, 12),
-                "password", "01310-100", Plan.STANDART, "dias@example.com", "52998224725");
+                "password", "dias@example.com", "52998224725");
     }
 
     private User user(Long id) {
@@ -180,9 +179,7 @@ class EmployeeServiceTest {
                 LocalDate.of(2000, 2, 12),
                 "52998224725",
                 "dias@example.com",
-                "encoded-password",
-                "01310-100",
-                Plan.STANDART
+                "encoded-password"
         );
     }
 }

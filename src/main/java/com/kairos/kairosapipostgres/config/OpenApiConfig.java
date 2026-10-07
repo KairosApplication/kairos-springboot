@@ -30,9 +30,11 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info().title("Kairos API")
                         .version("v1")
-                        .description("API REST do Kairos. Autenticação por sessão JSESSIONID. "
+                        .description("API REST do Kairos. Autenticação por sessão JSESSIONID, "
+                                + "válida por 15 dias sem atividade e renovada nas requisições. "
                                 + "Antes de POST/PATCH/DELETE, obtenha o token em GET /api/v1/auth/login "
-                                + "e envie o valor no header indicado pela resposta. Após o login, renove o token CSRF."))
+                                + "e envie o valor no header indicado pela resposta. Após o login ou cadastro público, "
+                                + "renove o token CSRF. Use GET /api/v1/auth/me para retomar uma sessão salva."))
                 .components(new Components().addSchemas("ApiErrorResponse", new ObjectSchema()
                                 .addProperty("status", new Schema<>().type("integer"))
                                 .addProperty("error", new StringSchema())
@@ -51,7 +53,8 @@ public class OpenApiConfig {
                     200, false, false);
             documentLogin(api);
             document(api, "/api/v1/auth/me", PathItem.HttpMethod.GET, "Autenticação",
-                    "Consultar sessão", "Retorna e-mail e roles da sessão atual.", 200, true, false);
+                    "Consultar sessão", "Valida o cookie no Redis e retorna e-mail e roles da sessão atual. "
+                            + "Retorna 401 se a sessão autenticada não existir ou tiver expirado.", 200, true, false);
             document(api, "/api/v1/auth/logout", PathItem.HttpMethod.POST, "Autenticação",
                     "Encerrar sessão", "Invalida a sessão e remove o cookie JSESSIONID.", 204, true, true);
 
@@ -93,7 +96,11 @@ public class OpenApiConfig {
             default -> "Exige sessão autenticada.";
         };
         document(api, base + "/registration", PathItem.HttpMethod.POST, tag,
-                "Cadastrar " + tag.toLowerCase(), permission, 201, !publicRegistration, true);
+                "Cadastrar " + tag.toLowerCase(), publicRegistration
+                        ? "Cadastro público exige companyId de uma empresa existente, cria CUSTOMER "
+                        + "e autentica a sessão anônima. "
+                        + "Uma sessão já autenticada mantém seu usuário atual. Após o cadastro, renove o token CSRF."
+                        : permission, 201, !publicRegistration, true);
         document(api, base + "/list", PathItem.HttpMethod.GET, tag,
                 "Listar " + tag.toLowerCase(), permission, 200, true, false);
         document(api, base + "/find/{id}", PathItem.HttpMethod.GET, tag,
