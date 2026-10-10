@@ -43,11 +43,12 @@ class PostgresAuditInitializerTest {
         initializer.run(null);
 
         ArgumentCaptor<String> scripts = ArgumentCaptor.forClass(String.class);
-        verify(statement, times(4)).execute(scripts.capture());
-        assertThat(scripts.getAllValues().get(0)).contains("CREATE TABLE IF NOT EXISTS audits");
-        assertThat(scripts.getAllValues().get(1)).contains("CREATE OR REPLACE FUNCTION register_audit()");
-        assertThat(scripts.getAllValues().get(2)).contains("trg_products_audit");
-        assertThat(scripts.getAllValues().get(3)).contains("trg_purchases_audit");
+        verify(statement, times(5)).execute(scripts.capture());
+        assertThat(scripts.getAllValues().get(0)).isEqualTo("SELECT pg_advisory_xact_lock(1262572114, 1)");
+        assertThat(scripts.getAllValues().get(1)).contains("CREATE TABLE IF NOT EXISTS audits");
+        assertThat(scripts.getAllValues().get(2)).contains("CREATE OR REPLACE FUNCTION register_audit()");
+        assertThat(scripts.getAllValues().get(3)).contains("trg_products_audit");
+        assertThat(scripts.getAllValues().get(4)).contains("trg_purchases_audit");
         verify(connection).commit();
         verify(connection).setAutoCommit(true);
     }

@@ -35,6 +35,9 @@ public class PostgresAuditInitializer implements ApplicationRunner {
             boolean autoCommit = connection.getAutoCommit();
             connection.setAutoCommit(false);
             try (Statement statement = connection.createStatement()) {
+                // Serialize startup DDL across replicas; PostgreSQL releases this lock
+                // on commit or rollback. Never use a session lock with pooled connections.
+                statement.execute("SELECT pg_advisory_xact_lock(1262572114, 1)");
                 for (String script : AUDIT_SCRIPTS) {
                     String sql = new ClassPathResource(script).getContentAsString(StandardCharsets.UTF_8);
                     statement.execute(sql);

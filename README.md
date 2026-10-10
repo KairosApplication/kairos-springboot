@@ -370,3 +370,7 @@ No ruleset da `main`, exija `Analyze Java`, `Build and test`,
 `Dependency vulnerability check`, pois esse workflow roda apenas quando o build
 Maven é alterado. Rulesets e o secret scanning nativo são configurações do
 repositório no GitHub e não são representados integralmente por estes arquivos.
+
+## Deploy no EKS
+
+O fluxo compartilhado e sua ativação estão em [docs/eks-deploy.md](docs/eks-deploy.md).
