@@ -24,8 +24,14 @@ class PostgresAuditConcurrencyTest {
                 blocker.setAutoCommit(false);
                 blocker.createStatement().execute("SELECT pg_advisory_xact_lock(1262572114, 1)");
                 var initializer = new PostgresAuditInitializer(source);
-                var first = executor.submit(() -> { initializer.run(null); return null; });
-                var second = executor.submit(() -> { initializer.run(null); return null; });
+                var first = executor.submit(() -> {
+                    initializer.run(null);
+                    return null;
+                });
+                var second = executor.submit(() -> {
+                    initializer.run(null);
+                    return null;
+                });
                 // Wait until both real backend sessions are waiting on our lock.
                 long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
                 int waiting = 0;
@@ -35,7 +41,9 @@ class PostgresAuditConcurrencyTest {
                         result.next();
                         waiting = result.getInt(1);
                     }
-                    if (waiting < 2) Thread.sleep(50);
+                    if (waiting < 2) {
+                        Thread.sleep(50);
+                    }
                 }
                 assertThat(waiting).isEqualTo(2);
                 blocker.commit();
