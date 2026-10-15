@@ -17,8 +17,6 @@ public final class UserMapper {
         user.setLastName(request.lastName().trim());
         user.setBirthDate(request.birthDate());
         user.setPassword(request.password());
-        user.setZipCode(request.zipCode().trim());
-        user.setPlan(request.plan());
         user.setEmail(request.email().trim());
         user.setCpf(CpfFormatter.removeFormatMask(request.cpf()));
 
