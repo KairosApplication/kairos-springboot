@@ -11,7 +11,7 @@
     </Match>
     <!-- Constructor injection intentionally retains the Spring-managed Redis client. -->
     <Match>
-        <Class name="com.kairos.kairosapipostgres.security.RedisRefreshTokenStore"/>
+        <Class name="~com\.kairos\.kairosapipostgres\.security\.(RedisRefreshTokenStore|ApiAuthenticationFilter)"/>
         <Method name="&lt;init&gt;"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>

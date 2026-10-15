@@ -14,6 +14,7 @@ import java.time.Instant;
 
 @Component
 public class AuthCookies {
+    public static final String ACCESS = "KAIROS_ACCESS";
     public static final String REFRESH = "KAIROS_REFRESH";
     public static final String CSRF = "KAIROS_CSRF";
     private final AuthProperties properties;
@@ -25,9 +26,17 @@ public class AuthCookies {
     }
 
     public String refreshValue(HttpServletRequest request) {
+        return value(request, REFRESH);
+    }
+
+    public String accessValue(HttpServletRequest request) {
+        return value(request, ACCESS);
+    }
+
+    private String value(HttpServletRequest request, String name) {
         if (request.getCookies() != null) {
             for (Cookie cookie : request.getCookies()) {
-                if (REFRESH.equals(cookie.getName())) {
+                if (name.equals(cookie.getName())) {
                     return cookie.getValue();
                 }
             }
@@ -37,13 +46,23 @@ public class AuthCookies {
 
     public void write(HttpServletResponse response, RefreshToken token, Instant expires) {
         Duration remaining = Duration.between(clock.instant(), expires);
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie(REFRESH, "/api/v1/auth", token.value(),
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie(REFRESH, "/api/v1", token.value(),
                 remaining.isNegative() ? Duration.ZERO : remaining).toString());
+    }
+
+    public void writeAccess(HttpServletResponse response, String access) {
+        response.addHeader(HttpHeaders.SET_COOKIE,
+                cookie(ACCESS, "/api/v1", access, properties.accessTtl()).toString());
+        // Remove cookies issued before automatic renewal was introduced.
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie(REFRESH, "/api/v1/auth", "", Duration.ZERO).toString());
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
     }
 
     public void clear(HttpServletResponse response) {
         response.addHeader(HttpHeaders.SET_COOKIE,
-                cookie(REFRESH, "/api/v1/auth", "", Duration.ZERO).toString());
+                cookie(REFRESH, "/api/v1", "", Duration.ZERO).toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie(ACCESS, "/api/v1", "", Duration.ZERO).toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie(REFRESH, "/api/v1/auth", "", Duration.ZERO).toString());
     }
 
     private ResponseCookie cookie(String name, String path, String value, Duration maxAge) {

@@ -267,8 +267,9 @@ Os recursos ficam sob `/api/v1`; Swagger em `/swagger-ui/index.html` e OpenAPI
 em `/v3/api-docs`. A autenticação usa access JWT Bearer de 15 minutos e refresh
 opaco em cookie HttpOnly, com sessão absoluta de 7 dias no Redis. Cada login
 cria uma sessão independente. Rotação atômica por Lua preserva os hashes consumidos;
-reuso revoga apenas a família correspondente. Logout impede renovações, mas
-JWTs já emitidos continuam válidos até expirar.
+reuso revoga apenas a família correspondente. Logout invalida também os JWTs emitidos, com verificação da sessão no Redis
+a cada requisição. A API renova automaticamente os cookies na próxima chamada
+quando o access token expira.
 
 Configure `AUTH_SIGNING_KEY` com pelo menos 32 bytes aleatórios em Base64,
 `AUTH_COOKIE_SECURE=false` somente em HTTP local, e origens explícitas em
@@ -280,7 +281,8 @@ O contrato do login continua sendo formulário `email`/`password`, com resposta
 200 contendo `accessToken`, `tokenType` e `expiresIn`. Login, cadastro público,
 refresh e logout exigem cookie CSRF e o header obtido em `GET /api/v1/auth/login`.
 Após login/cadastro, obtenha novo CSRF. Nas rotas protegidas, use
-`Authorization: Bearer <accessToken>`; o refresh cookie não autentica essas rotas.
+`Authorization: Bearer <accessToken>` ou cookies HttpOnly. Com cookies, a API
+renova o JWT e atende a mesma requisição sem intervenção do frontend.
 O cadastro público preserva `id`, `name`, `email` e acrescenta os campos de access
 token para visitantes; se já houver JWT autenticado, mantém a identidade atual.
 

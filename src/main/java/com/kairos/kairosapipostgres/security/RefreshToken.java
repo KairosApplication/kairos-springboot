@@ -9,6 +9,9 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.UUID;
+import javax.crypto.Mac;
+import javax.crypto.SecretKey;
+import java.security.GeneralSecurityException;
 
 /** Opaque to clients. The random locator is never sufficient to authorize a mutation. */
 public final class RefreshToken {
@@ -37,6 +40,18 @@ public final class RefreshToken {
             throw new BadCredentialsException("Invalid refresh token");
         }
         return new RefreshToken(value.substring(0, 32), value);
+    }
+
+    public RefreshToken automaticSuccessor(SecretKey key) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(key);
+            byte[] secret = mac.doFinal(("kairos:auto-refresh:v1:" + value).getBytes(StandardCharsets.US_ASCII));
+            return new RefreshToken(sessionId, sessionId + "."
+                    + Base64.getUrlEncoder().withoutPadding().encodeToString(secret));
+        } catch (GeneralSecurityException exception) {
+            throw new IllegalStateException("Refresh derivation unavailable", exception);
+        }
     }
 
     public String sessionId() {

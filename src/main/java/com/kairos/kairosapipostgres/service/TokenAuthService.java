@@ -25,6 +25,7 @@ import java.time.Clock;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+import javax.crypto.SecretKey;
 
 @Service
 public class TokenAuthService {
@@ -37,10 +38,12 @@ public class TokenAuthService {
     private final Clock clock;
     private final AuthCookies cookies;
     private final CsrfTokenRepository csrf;
+    private final SecretKey signingKey;
 
     public TokenAuthService(AuthenticationManager authenticationManager, CustomUserDetailsService userDetails,
                             UserRepository users, RedisRefreshTokenStore sessions, JwtEncoder encoder,
-                            AuthProperties properties, Clock clock, AuthCookies cookies, CsrfTokenRepository csrf) {
+                            AuthProperties properties, Clock clock, AuthCookies cookies, CsrfTokenRepository csrf,
+                            SecretKey signingKey) {
         this.authenticationManager = authenticationManager;
         this.userDetails = userDetails;
         this.users = users;
@@ -50,6 +53,7 @@ public class TokenAuthService {
         this.clock = clock;
         this.cookies = cookies;
         this.csrf = csrf;
+        this.signingKey = signingKey;
     }
 
     public TokenResponse login(String email, String password, HttpServletRequest request,
@@ -62,13 +66,27 @@ public class TokenAuthService {
         TokenResponse access = issue(user.getId(), user.getEmail(), refresh.sessionId(), authentication.getAuthorities());
         var expires = sessions.create(user.getId(), refresh, properties.sessionTtl());
         cookies.write(response, refresh, expires);
+        cookies.writeAccess(response, access.accessToken());
         csrf.saveToken(null, request, response);
         return access;
     }
 
     public TokenResponse refresh(HttpServletRequest request, HttpServletResponse response) {
+        return refresh(request, response, false);
+    }
+
+    public TokenResponse automaticRefresh(HttpServletRequest request, HttpServletResponse response, Jwt expired) {
         RefreshToken previous = RefreshToken.parse(cookies.refreshValue(request));
-        var session = sessions.inspect(previous);
+        if (expired != null && !previous.sessionId().equals(expired.getClaimAsString("sid"))) {
+            throw new BadCredentialsException("Access and refresh sessions differ");
+        }
+        return refresh(request, response, true);
+    }
+
+    private TokenResponse refresh(HttpServletRequest request, HttpServletResponse response, boolean automatic) {
+        RefreshToken previous = RefreshToken.parse(cookies.refreshValue(request));
+        RefreshToken next = automatic ? previous.automaticSuccessor(signingKey) : RefreshToken.rotate(previous.sessionId());
+        var session = automatic ? sessions.automatic(previous, next, false) : sessions.inspect(previous);
         UserDetails current;
         try {
             var user = users.findById(session.userId())
@@ -83,10 +101,10 @@ public class TokenAuthService {
             sessions.revoke(previous);
             throw new BadCredentialsException("User cannot authenticate");
         }
-        RefreshToken next = RefreshToken.rotate(previous.sessionId());
         TokenResponse access = issue(session.userId(), current.getUsername(), next.sessionId(), current.getAuthorities());
-        var rotated = sessions.rotate(previous, next);
+        var rotated = automatic ? sessions.automatic(previous, next, true) : sessions.rotate(previous, next);
         cookies.write(response, next, rotated.expiresAt());
+        cookies.writeAccess(response, access.accessToken());
         return access;
     }
 

@@ -83,7 +83,7 @@ class JwtSecurityTest {
         var cookies = new AuthCookies(properties(KEY, true, "None"), clock);
         cookies.write(response, RefreshToken.create(), now.plusSeconds(60));
         assertThat(response.getHeader("Set-Cookie")).contains("HttpOnly", "Secure", "SameSite=None", "Max-Age=60")
-                .contains("Path=/api/v1/auth");
+                .contains("Path=/api/v1");
         cookies.clear(response);
         assertThat(response.getHeaders("Set-Cookie").getLast()).contains("Max-Age=0");
     }

@@ -2,62 +2,45 @@
 
 ## Autenticação e Redis
 
-A API usa JWT Bearer e refresh tokens em cookie HttpOnly; veja o
-[contrato e exemplos](authentication.md). Redis guarda apenas SHA-256 dos refresh
-tokens e metadados, nunca o refresh em texto puro. PostgreSQL continua responsável
-por usuários, senhas e permissões. A validação do access JWT não consulta os bancos.
-Consultas exigidas pelo recurso de negócio e cache de categorias continuam normais.
+JWT em Bearer ou cookie HttpOnly identifica a sessão. Cada requisição autenticada
+consulta Redis para confirmar que ela está ativa: logout/reuso invalidam também
+JWTs ainda não expirados. Veja o [contrato](authentication.md).
 
-Cada login cria uma chave `kairos:auth:{sessionId}`. O hash contém `uid`, `expires`
-(em milissegundos), `revoked` e campos `t:<sha256>` com estado `active` ou `used`.
-Os scripts Lua usam o relógio do Redis. O TTL inicial é 7 dias e a rotação nunca
-altera a expiração absoluta. Todos os hashes consumidos ficam na mesma chave até
-a expiração. Isso mantém a operação em um único hash slot no Redis Cluster.
+Cada sessão usa um hash `kairos:auth:{sid}`, em um único slot no Redis Cluster.
+O hash contém usuário, prazo absoluto, revogação e hashes SHA-256 dos refresh
+tokens ativos/consumidos. Lua usa o relógio Redis e mantém o TTL absoluto em sete
+dias. Tokens desconhecidos não autorizam revogação.
 
-A inspeção valida a prova do token antes de carregar permissões do PostgreSQL;
-a rotação revalida e troca o estado atomicamente. Logout e rotação compartilham
-a mesma chave, de modo que uma revogação impede toda renovação posterior.
-Se uma rotação vencer a corrida com logout, o JWT emitido pode continuar válido
-até expirar, mas o refresh resultante não pode renovar após a revogação.
+A renovação automática aceita um sucessor idêntico por três segundos para suportar
+requisições simultâneas. A API deriva o sucessor por HMAC; Redis nunca guarda o
+token completo. Fora dessa janela, reuso revoga a sessão. A renovação explícita
+não tem tolerância. Os testes cobrem ambas as regras e corridas entre instâncias.
 
-Um locator conhecido com hash desconhecido não autoriza revogação. Um hash
-consumido reapresentado revoga a família inteira. O cliente deve serializar
-refresh: duas chamadas com o mesmo token podem produzir uma resposta 200 e
-outra 401, deixando também o novo refresh revogado. Outras sessões não são afetadas.
+Configure AOF, volume persistente, backups, ACL/TLS e `noeviction`. Falta de memória
+ou indisponibilidade falha com 503, inclusive na validação de access tokens.
+Remover chaves de sessão exige novo login. Restaurar um backup antigo pode
+restaurar tokens anteriores à revogação: após recuperação com perda de dados,
+invalide as sessões restauradas. AOF/replicação não garantem perda zero em falhas.
+O Redis também é usado pelo cache de negócio.
 
-O Compose mantém AOF e volume `redis-data` e configura `noeviction`. Monitore memória:
-quando um limite é atingido, gravações podem falhar em vez de remover sessões.
-O AOF padrão usa fsync periódico e pode perder gravações recentes em falhas abruptas.
-Perda do volume exige novo login; perda parcial de registros consumidos compromete
-a detecção de reuso. Considere instância separada do cache, backups e durabilidade
-adequada ao ambiente. Não use comandos de limpeza global para testes ou operação.
+As antigas sessões JSESSIONID não autenticam. As chaves antigas expiram com o
+TTL anterior. Não há fallback de autenticação em memória.
 
-Credenciais ficam em `REDIS_URL` (`rediss://` quando houver TLS); configure
-`REDIS_CONNECT_TIMEOUT` e `REDIS_COMMAND_TIMEOUT` (padrão 2s). Login e refresh
-falham com 503 em indisponibilidade e não emitem tokens sem sessão controlada.
-Não há fallback em memória. Logout retorna 503 quando não consegue confirmar a
-revogação; o cliente deve tentar novamente. Access JWTs válidos continuam funcionando
-até expirar, exceto recursos cuja própria regra de negócio dependa do Redis.
-
-As antigas sessões JSESSIONID deixam de autenticar: usuários precisam fazer novo
-login. Não alteramos nem apagamos chaves antigas; elas expiram conforme o TTL anterior.
-
-Testes com Redis real (Docker em execução, contêiner descartável):
+Testes com Redis real descartável (Docker em execução):
 
 ```sh
-./mvnw -B -ntp -Dintegration.redis=true -Dintegration.redis.container=true clean verify
+./mvnw -B -ntp -Dintegration.redis=true -Dintegration.redis.container=true verify
 ```
 
 Com Redis isolado já disponível, como na CI:
 
 ```sh
-./mvnw -B -ntp -Dintegration.redis=true -Dtest.redis.port=6379 clean verify
+./mvnw -B -ntp -Dintegration.redis=true -Dtest.redis.port=6379 verify
 ```
 
-A suíte remove apenas as chaves que ela própria criou; não use um Redis de produção.
-A suíte padrão usa mocks somente para os contratos web. Atomicidade, TTL, reuso,
-isolamento e corridas são verificados nos testes que exigem Redis real. Eles ficam
-explicitamente desabilitados quando `integration.redis` não está definido.
+A suíte remove somente as próprias chaves; nunca aponte para produção. O padrão
+usa mocks nos testes web; TTL, rotação, concorrência, revogação e logout imediato
+são verificados com Redis real quando `integration.redis=true`.
 
 ## PostgreSQL
 

@@ -4,6 +4,7 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
@@ -41,7 +42,17 @@ public class JwtConfig {
     }
 
     @Bean
+    @Primary
     public JwtDecoder jwtDecoder(SecretKey key, AuthProperties properties, Clock clock) {
+        return decoder(key, properties, clock, false);
+    }
+
+    @Bean
+    public JwtDecoder sessionProofDecoder(SecretKey key, AuthProperties properties, Clock clock) {
+        return decoder(key, properties, clock, true);
+    }
+
+    private JwtDecoder decoder(SecretKey key, AuthProperties properties, Clock clock, boolean allowExpired) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
         JwtTimestampValidator timestamp = new JwtTimestampValidator(Duration.ZERO);
         timestamp.setClock(clock);
@@ -55,7 +66,8 @@ public class JwtConfig {
             var audiences = jwt.getAudience();
             var now = clock.instant();
             boolean valid = expires != null && issued != null
-                    && expires.isAfter(now)
+                    && (allowExpired || expires.isAfter(now))
+                    && expires.isAfter(issued)
                     && !issued.isAfter(now)
                     && subject != null && subject.matches("[1-9][0-9]*")
                     && sid != null && sid.matches("[a-f0-9]{32}")
@@ -68,8 +80,9 @@ public class JwtConfig {
             return valid ? OAuth2TokenValidatorResult.success() : OAuth2TokenValidatorResult.failure(
                     new OAuth2Error("invalid_token", "Invalid access token claims", null));
         };
-        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(timestamp,
-                new JwtIssuerValidator(properties.issuer()), claims));
+        decoder.setJwtValidator(allowExpired
+                ? new DelegatingOAuth2TokenValidator<>(new JwtIssuerValidator(properties.issuer()), claims)
+                : new DelegatingOAuth2TokenValidator<>(timestamp, new JwtIssuerValidator(properties.issuer()), claims));
         return decoder;
     }
 }

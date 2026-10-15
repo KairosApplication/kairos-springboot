@@ -9,10 +9,13 @@ Abra /swagger-ui/index.html com a API em execução; o JSON está em /v3/api-doc
 3. Use Authorize → bearerAuth e informe apenas o access token, sem o prefixo Bearer.
 4. Obtenha novo CSRF com GET /api/v1/auth/login após o login. Use esse header
    em POST /api/v1/auth/refresh e POST /api/v1/auth/logout, com cookies do navegador.
-5. Após refresh, substitua o JWT no Authorize. Remova Bearer expirado antes de
+5. Com cookies, a API renova automaticamente o JWT. Para Bearer sem cookies,
+   substitua o JWT no Authorize após refresh. Remova Bearer inválido antes de
    renovar: um header inválido é rejeitado antes de processar o cookie.
 
 Cookies Secure exigem HTTPS; em HTTP local configure AUTH_COOKIE_SECURE=false.
 Login, cadastro público, refresh e logout exigem CSRF. Não faça refresh em paralelo.
-Logout revoga novas renovações; access JWT anterior continua válido até expirar.
+Logout revoga a sessão no Redis e invalida também os JWTs já emitidos.
+No navegador, os cookies permitem renovação automática na API; envio de cookies
+em operações de escrita exige CSRF, mesmo com Bearer.
 Veja o [contrato e exemplos](authentication.md).

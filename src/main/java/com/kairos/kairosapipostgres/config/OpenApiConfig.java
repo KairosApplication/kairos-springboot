@@ -33,7 +33,7 @@ public class OpenApiConfig {
                         .description("API REST do Kairos. JWT Bearer de 15 minutos e refresh em cookie HttpOnly, "
                                 + "com sessão absoluta de 7 dias. Login, cadastro público, refresh e logout exigem "
                                 + "CSRF obtido em GET /api/v1/auth/login. Após login/cadastro, renove o CSRF. "
-                                + "Logout e reuso revogam renovações; JWTs emitidos continuam válidos até expirar."))
+                                + "Logout e reuso invalidam a sessão e os JWTs emitidos. Cookies permitem renovação automática na API."))
                 .components(new Components().addSchemas("ApiErrorResponse", new ObjectSchema()
                                 .addProperty("status", new Schema<>().type("integer"))
                                 .addProperty("error", new StringSchema())
@@ -52,11 +52,11 @@ public class OpenApiConfig {
                     200, false, false);
             documentLogin(api);
             document(api, "/api/v1/auth/me", PathItem.HttpMethod.GET, "Autenticação",
-                    "Consultar identidade", "Valida o JWT localmente e retorna e-mail e roles do access token. "
-                            + "Retorna 401 se o JWT for inválido ou expirado.", 200, true, false);
+                    "Consultar identidade", "Valida o JWT e a sessão no Redis e retorna e-mail e roles. "
+                            + "Renova automaticamente com refresh cookie válido; retorna 401 se a sessão for inválida.", 200, true, false);
             document(api, "/api/v1/auth/logout", PathItem.HttpMethod.POST, "Autenticação",
-                    "Encerrar sessão", "Revoga a sessão provada pelo cookie ou JWT e remove o refresh cookie. "
-                            + "Idempotente. JWTs emitidos continuam válidos até expirar.", 204, false, true);
+                    "Encerrar sessão", "Revoga a sessão provada pelo cookie ou JWT e remove os cookies. "
+                            + "Idempotente. JWTs emitidos são rejeitados na próxima requisição.", 204, false, true);
             document(api, "/api/v1/auth/refresh", PathItem.HttpMethod.POST, "Autenticação",
                     "Renovar tokens", "Exige refresh cookie e CSRF. Rotaciona o refresh atomicamente no Redis. "
                             + "Reuso revoga a família; serialize chamadas no cliente.", 200, false, true);

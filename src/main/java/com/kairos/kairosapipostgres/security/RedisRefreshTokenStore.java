@@ -15,6 +15,8 @@ public class RedisRefreshTokenStore {
     private static final DefaultRedisScript<Long> CREATE = script("create-session", Long.class);
     private static final DefaultRedisScript<List> REFRESH = script("refresh-session", List.class);
     private static final DefaultRedisScript<Long> REVOKE = script("revoke-session", Long.class);
+    private static final DefaultRedisScript<Long> ACTIVE = script("active-session", Long.class);
+    private static final DefaultRedisScript<List> AUTO = script("automatic-refresh", List.class);
     private final StringRedisTemplate redis;
 
     public RedisRefreshTokenStore(StringRedisTemplate redis) {
@@ -48,8 +50,25 @@ public class RedisRefreshTokenStore {
         return exchange(previous, next.hash());
     }
 
+    public void assertActive(String sessionId, String userId) {
+        Long active = redis.execute(ACTIVE, List.of(key(sessionId)), userId);
+        if (!Long.valueOf(1).equals(active)) {
+            throw new BadCredentialsException("Session expired or revoked");
+        }
+    }
+
+    public Session automatic(RefreshToken previous, RefreshToken next, boolean rotate) {
+        List<?> result = redis.execute(AUTO, List.of(key(previous.sessionId())), previous.hash(), next.hash(),
+                rotate ? "1" : "0");
+        return session(result);
+    }
+
     private Session exchange(RefreshToken token, String nextHash) {
         List<?> result = redis.execute(REFRESH, List.of(key(token.sessionId())), token.hash(), nextHash);
+        return session(result);
+    }
+
+    private Session session(List<?> result) {
         if (result == null || result.size() != 2) {
             throw new BadCredentialsException("Invalid or expired refresh session");
         }

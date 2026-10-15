@@ -15,10 +15,12 @@ import org.springframework.security.web.SecurityFilterChain;
 import com.kairos.kairosapipostgres.security.AuthCookies;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
-import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.authentication.ProviderManager;
+import com.kairos.kairosapipostgres.security.ApiAuthenticationFilter;
+import com.kairos.kairosapipostgres.security.RedisRefreshTokenStore;
+import com.kairos.kairosapipostgres.service.TokenAuthService;
+import org.springframework.beans.factory.annotation.Qualifier;
+import java.time.Clock;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
@@ -32,7 +34,10 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, CsrfTokenRepository csrfTokenRepository,
-                                                   JwtDecoder jwtDecoder)
+                                                   JwtDecoder jwtDecoder,
+                                                   @Qualifier("sessionProofDecoder") JwtDecoder proofDecoder,
+                                                   RedisRefreshTokenStore sessions, TokenAuthService tokens,
+                                                   AuthCookies cookies, Clock clock)
             throws Exception {
 
         JwtGrantedAuthoritiesConverter roles = new JwtGrantedAuthoritiesConverter();
@@ -41,15 +46,14 @@ public class SecurityConfig {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setPrincipalClaimName("email");
         converter.setJwtGrantedAuthoritiesConverter(roles);
-        JwtAuthenticationProvider provider = new JwtAuthenticationProvider(jwtDecoder);
-        provider.setJwtAuthenticationConverter(converter);
-        // Register directly: the resource-server DSL would exempt every Bearer request from CSRF,
-        // including cookie-based refresh/logout endpoints.
-        var bearer = new BearerTokenAuthenticationFilter(new ProviderManager(provider));
+        var authentication = new ApiAuthenticationFilter(jwtDecoder, proofDecoder, converter, sessions, tokens, cookies, clock);
 
         http
                 .cors(withDefaults())
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository)
+                        // Login/logout explicitly rotate CSRF. A JWT request must preserve it.
+                        .sessionAuthenticationStrategy(
+                                new org.springframework.security.web.authentication.session.NullAuthenticatedSessionStrategy())
                         .requireCsrfProtectionMatcher(request -> {
                             if (!CsrfFilter.DEFAULT_CSRF_MATCHER.matches(request)) {
                                 return false;
@@ -60,7 +64,8 @@ public class SecurityConfig {
                             }
                             // Cookie authentication endpoints always require CSRF, even with a Bearer header.
                             if (path.startsWith("/api/v1/auth/")
-                                    || path.equals("/api/v1/users/registration")) {
+                                    || path.equals("/api/v1/users/registration")
+                                    || cookies.accessValue(request) != null || cookies.refreshValue(request) != null) {
                                 return true;
                             }
                             String authorization = request.getHeader("Authorization");
@@ -133,7 +138,7 @@ public class SecurityConfig {
                 )
 
                 .formLogin(AbstractHttpConfigurer::disable)
-                .addFilterBefore(bearer, AnonymousAuthenticationFilter.class)
+                .addFilterBefore(authentication, AnonymousAuthenticationFilter.class)
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((request, response, exception) ->
                                 response.setStatus(401))

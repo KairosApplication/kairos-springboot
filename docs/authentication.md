@@ -1,162 +1,132 @@
-# Autenticação JWT e refresh tokens
+# Autenticação JWT, Redis e renovação automática
 
-Java 21, Spring Boot 4.0.7 e Spring Security gerenciado pelo Boot. PostgreSQL
-continua responsável por usuários, senhas e perfis. O login reaproveita
-AuthenticationManager e PasswordEncoder. Entidades e migrações permanecem iguais.
+A API autentica com JWT HS256 e controla as sessões no Redis. PostgreSQL mantém
+usuários, senhas e perfis. Cada login cria uma sessão independente por dispositivo.
 
-Preservamos o transporte por cookies. Não há código de cliente neste repositório
-que exija refresh em JSON; adotamos navegador como padrão. Aplicativos nativos
-com cookie jar podem manter esse contrato, guardando cookies em armazenamento
-seguro do sistema operacional. Não foi criado frontend.
+## Configuração
 
-## Configuração e execução
+Copie `.env.example` para `.env` e configure PostgreSQL e `AUTH_SIGNING_KEY`.
+A chave deve conter pelo menos 32 bytes aleatórios em Base64, sem valor padrão.
+Todas as instâncias devem compartilhar a chave, issuer e audience.
 
-Preencha .env a partir de .env.example. AUTH_SIGNING_KEY é obrigatória: pelo
-menos 32 bytes aleatórios em Base64, sem chave padrão em produção. Gere uma
-chave uma vez e guarde no ambiente/gerenciador de segredos; todas as instâncias
-precisam compartilhar chave, issuer e audience. Uma troca de chave invalida JWTs.
-
-Exemplo PowerShell (variável somente nesta sessão; não exibe a chave):
-
-```powershell
-$keyBytes = [byte[]]::new(32)
-[System.Security.Cryptography.RandomNumberGenerator]::Fill($keyBytes)
-$env:AUTH_SIGNING_KEY = [Convert]::ToBase64String($keyBytes)
-docker compose up -d redis
-./mvnw.cmd spring-boot:run
-```
-
-Para executar API e Redis com Compose, configure a chave no .env e execute
-`docker compose --profile app up -d --build`. Não teste contra produção:
-a inicialização mantém as migrações Flyway existentes.
-
-| Variável | Padrão/finalidade |
+| Variável | Padrão |
 | --- | --- |
-| AUTH_SIGNING_KEY | Obrigatória, Base64 de pelo menos 32 bytes aleatórios; HS256 |
 | AUTH_ISSUER / AUTH_AUDIENCE | kairos-api / kairos-clients |
-| AUTH_ACCESS_TTL / AUTH_SESSION_TTL | 15m / 7d (absoluto) |
-| AUTH_COOKIE_SECURE | true; false somente em HTTP local |
-| AUTH_COOKIE_SAME_SITE | Lax; None exige Secure e HTTPS |
-| REDIS_URL | redis://localhost:6379; suporta credenciais e rediss:// |
+| AUTH_ACCESS_TTL / AUTH_SESSION_TTL | 15m / 7d absolutos |
+| AUTH_COOKIE_SECURE / AUTH_COOKIE_SAME_SITE | true / Lax |
+| REDIS_URL | redis://localhost:6379 |
 | REDIS_CONNECT_TIMEOUT / REDIS_COMMAND_TIMEOUT | 2s / 2s |
-| CORS_ALLOWED_ORIGINS | Origens explícitas separadas por vírgula, sem curingas |
+| CORS_ALLOWED_ORIGINS | http://localhost:5173; lista explícita separada por vírgulas |
+
+Use `AUTH_COOKIE_SECURE=false` somente para HTTP local. `SameSite=None` exige
+Secure e HTTPS. Cookies cross-site também dependem das políticas do navegador.
+Não use o ambiente de produção para testes: Flyway executa migrações ao iniciar.
 
 ## Contrato
 
-| Método e rota | Entrada | Resposta |
-| --- | --- | --- |
-| GET /api/v1/auth/login | Pública | 200 {headerName, token} e cookie CSRF |
-| POST /api/v1/auth/login | Formulário email/password, cookie e header CSRF | 200 access JSON e refresh cookie |
-| POST /api/v1/auth/refresh | Refresh cookie, cookie e header CSRF | 200 novo access JSON e novo refresh cookie |
-| GET /api/v1/auth/me | Authorization: Bearer accessToken | 200 {email, roles} |
-| POST /api/v1/auth/logout | Refresh cookie ou JWT, cookie e header CSRF | 204 e remoção dos cookies |
+| Método e rota | Comportamento |
+| --- | --- |
+| GET /api/v1/auth/login | Obtém JSON `{headerName, token}` e cookie CSRF |
+| POST /api/v1/auth/login | Formulário email/password + CSRF; retorna JWT no JSON e cookies |
+| GET /api/v1/auth/me | Retorna `{email, roles}` com Bearer ou cookies |
+| POST /api/v1/auth/refresh | Renovação explícita: refresh cookie + CSRF; retorna novos tokens |
+| POST /api/v1/auth/logout | Revoga a sessão no Redis e apaga os cookies; 204 idempotente |
 
-Login/refresh retornam:
+Login e refresh retornam:
+
 ```json
 {"accessToken":"<jwt>","tokenType":"Bearer","expiresIn":900}
 ```
 
-Refresh nunca aparece no JSON. KAIROS_REFRESH é HttpOnly, Path=/api/v1/auth,
-SameSite configurável e Secure por padrão. Sua duração acompanha o restante da
-sessão, sem prorrogar 7 dias. KAIROS_CSRF também é HttpOnly, Path=/api/v1;
-obtenha o token a enviar pelo JSON de GET /api/v1/auth/login.
+`KAIROS_ACCESS` contém o JWT e `KAIROS_REFRESH` contém o refresh opaco. Ambos são
+HttpOnly, Secure por padrão, SameSite configurável e Path=/api/v1. O refresh
+nunca aparece no JSON. Cookies legados de refresh em /api/v1/auth são removidos.
+`KAIROS_CSRF` também é HttpOnly; obtenha o valor mascarado para o header pelo
+GET /api/v1/auth/login. Não armazene tokens em localStorage.
 
-O cadastro público mantém id/name/email e acrescenta accessToken/tokenType/expiresIn
-para visitantes, com refresh cookie. Se houver JWT autenticado, mantém a identidade
-atual e retorna null nos campos de token. Se Redis falhar após o cadastro PostgreSQL
-concluir, o usuário pode já existir: recupere a infraestrutura e faça login.
+O cadastro público mantém id/name/email, acrescenta os campos de access token e
+faz login do visitante. Se já estiver autenticado, preserva sua identidade e
+retorna null nos campos de token. Uma falha no Redis após o cadastro concluir no
+PostgreSQL pode exigir fazer login após recuperar a infraestrutura.
 
-Login, cadastro público, refresh e logout sempre exigem CSRF, mesmo com Bearer.
-Obtenha novo CSRF após login/cadastro e logout; refresh preserva o atual.
-Nas demais rotas, autenticação exclusivamente por Bearer dispensa CSRF.
-Cookie refresh e o antigo JSESSIONID não autenticam recursos protegidos.
-Clientes que esperavam login 204 e JSESSIONID precisam migrar para JSON e Bearer.
+## Renovação na própria API
 
-## Exemplo no navegador
+O navegador envia os cookies com `credentials: 'include'`. Quando o access cookie
+expira ou está ausente e há um refresh válido, o filtro da API renova os tokens,
+atualiza os cookies e continua a requisição original. Não é necessário tratar 401,
+chamar refresh nem repetir a operação no frontend. Não há tarefa em background:
+a renovação ocorre na próxima requisição, dentro dos sete dias da sessão.
 
-Execute de uma origem permitida. Mantenha access apenas em memória. Cookies são
-gerenciados pelo navegador; não armazene refresh em localStorage.
+Bearer continua disponível. Um Bearer expirado pode ser renovado quando houver
+refresh cookie da MESMA sessão; se já houver access cookie atual da mesma sessão,
+a API o utiliza sem outra rotação. Bearer inválido, assinatura adulterada ou
+sessões incompatíveis são rejeitados. Sem cookie de refresh, um Bearer expirado
+retorna 401. Login e refresh explícito processam suas próprias credenciais.
+
+Requisições simultâneas da renovação automática compartilham o mesmo sucessor
+por uma janela de **3 segundos**. O sucessor é derivado por HMAC com separação de
+domínio, usando a chave secreta do servidor; Redis guarda apenas hashes e o
+prazo de sobreposição, sem o refresh em texto puro. A operação é atômica em Lua
+e funciona entre instâncias. Depois da janela, ou se o sucessor já foi consumido,
+o reuso revoga a sessão. Durante esses três segundos não é possível distinguir
+um reenvio legítimo de um replay do mesmo token; ambos recebem o mesmo sucessor.
+A renovação explícita permanece estrita: serialize chamadas a /auth/refresh.
+
+A expiração absoluta de sete dias não muda na rotação. Ao atingir esse prazo,
+é necessário fazer login novamente. Usuário e perfis são recarregados do
+PostgreSQL ao renovar; alterações de perfil aparecem no próximo JWT.
+
+## Logout imediato e indisponibilidade
+
+Toda requisição autenticada verifica assinatura e claims do JWT e consulta no
+Redis se a sessão existe, pertence ao usuário, está ativa e não expirou. Não há
+consulta ao PostgreSQL apenas para autenticar um JWT ainda válido.
+
+O logout e a detecção de reuso invalidam também JWTs já emitidos: sua próxima
+requisição retorna 401, mesmo antes de expirar. Uma requisição já autorizada e
+em execução pode concluir; a revogação não desfaz operações iniciadas.
+
+Se JWT e refresh cookie forem de sessões diferentes, o logout revoga somente a
+sessão do JWT verificado. Sem JWT, o refresh prova a sessão. JWT assinado expirado
+também permite logout. Chamadas repetidas continuam retornando 204. Não há logout
+global de outros dispositivos. O cliente deve limpar eventual token mantido em memória.
+
+Redis indisponível retorna 503 no login, refresh, logout e recursos autenticados;
+não há fallback em memória nem aceitação de JWT sem conferir revogação. Se logout
+falhar, os cookies são preservados para permitir nova tentativa. Credenciais
+inválidas retornam 401; permissão insuficiente ou CSRF inválido retornam 403.
+
+## Navegador
 
 ```javascript
 const api = 'http://localhost:8080/api/v1';
-let accessToken, csrf;
-async function loadCsrf() {
+async function csrf() {
   const response = await fetch(api + '/auth/login', { credentials: 'include' });
-  if (!response.ok) throw new Error('Falha no CSRF');
-  csrf = await response.json();
+  if (!response.ok) throw new Error('CSRF: ' + response.status);
+  return response.json();
 }
-await loadCsrf();
+let protection = await csrf();
 const login = await fetch(api + '/auth/login', {
   method: 'POST', credentials: 'include',
-  headers: { [csrf.headerName]: csrf.token },
+  headers: { [protection.headerName]: protection.token },
   body: new URLSearchParams({ email: 'usuario@example.com', password: '<senha>' })
 });
 if (!login.ok) throw new Error('Login: ' + login.status);
-accessToken = (await login.json()).accessToken;
-await loadCsrf();
-await fetch(api + '/auth/me', {
-  headers: { Authorization: 'Bearer ' + accessToken }
-});
-
-// Compartilhe a Promise entre chamadas; serialize também entre abas/processos.
-let refreshing;
-function refresh() {
-  return refreshing ??= (async () => {
-    const response = await fetch(api + '/auth/refresh', {
-      method: 'POST', credentials: 'include',
-      headers: { [csrf.headerName]: csrf.token }
-    });
-    if (!response.ok) throw new Error('Refresh: ' + response.status);
-    accessToken = (await response.json()).accessToken;
-  })().finally(() => { refreshing = undefined; });
-}
-await refresh();
+protection = await csrf(); // login troca a proteção CSRF
+const me = await fetch(api + '/auth/me', { credentials: 'include' });
+// A API renova os cookies e atende esta mesma chamada quando necessário.
 const logout = await fetch(api + '/auth/logout', {
   method: 'POST', credentials: 'include',
-  headers: { [csrf.headerName]: csrf.token }
+  headers: { [protection.headerName]: protection.token }
 });
 if (!logout.ok) throw new Error('Logout: ' + logout.status);
-accessToken = undefined;
 ```
 
-Ao reabrir a aplicação, obtenha CSRF e use refresh. Não envie Bearer expirado
-ao refresh/logout: o filtro rejeita o header antes de processar o cookie.
-Para cross-site, configure HTTPS, SameSite=None, Secure e CORS explícito com
-credenciais. Políticas do navegador sobre cookies de terceiros ainda se aplicam.
+Login, cadastro, refresh e logout sempre exigem CSRF. As demais operações de
+escrita também exigem CSRF quando houver cookies de autenticação, mesmo com
+Bearer. Somente requisições exclusivamente Bearer dispensam CSRF. Após logout,
+obtenha novo CSRF antes de fazer login novamente. O antigo JSESSIONID não autentica.
 
-## TTL, atomicidade, reuso e logout
-
-JWT contém sub (ID), email (preserva a identidade existente), sid, roles, issuer,
-audience, iat, exp, jti e token_use=access. Assinatura HS256, algoritmo e claims
-são validados localmente. Não há consulta a bancos apenas para validar JWT.
-Consultas de negócio/cache continuam normais. Perfis mudam no próximo refresh;
-access tokens emitidos mantêm os perfis anteriores até expirar.
-
-Refresh tem locator aleatório e segredo de 256 bits (SecureRandom). O locator
-sozinho não autoriza nada. Redis guarda SHA-256 do token completo e metadados
-em uma chave kairos:auth:{sid}, num único hash slot para Redis Cluster.
-A rotação Lua revalida o token, consome o hash anterior e insere o novo
-atomicamente. Hashes consumidos permanecem até a expiração absoluta.
-Usuário e perfis são recarregados do PostgreSQL antes de concluir a rotação.
-
-Token desconhecido não revoga sessões. Reuso de hash consumido revoga somente
-a família correspondente. Serialize refresh, inclusive entre abas: duas chamadas
-com o mesmo token podem produzir 200 e 401, revogando também o novo refresh.
-Logout e rotação compartilham a chave; revogação impede renovações posteriores.
-Logout é idempotente, inclusive quando não existe cookie/sessão a revogar.
-Se Bearer e cookie identificarem sessões diferentes, somente a sessão do JWT
-verificado é revogada; sem Bearer, a prova é o refresh cookie. Mantenha os tokens
-do cliente sincronizados, pois o cookie recebido é apagado no logout.
-
-**Logout e detecção de reuso não invalidam imediatamente JWTs emitidos.**
-Eles continuam válidos até expirar (15 minutos por padrão), pois não há uma
-lista de revogação consultada por requisição.
-
-Credenciais/token inválidos retornam 401; permissão insuficiente ou CSRF retorna
-403; indisponibilidade de Redis retorna 503 sem emissão de tokens. Não há fallback
-em memória. Logout retorna 503 se não conseguir confirmar revogação; tente novamente.
-Não registre senhas, tokens completos ou Authorization em logs/proxies.
-
-Veja [persistência, eviction e testes reais](security-redis.md).
-Referências oficiais: [JWT no Spring Security](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html)
-e [CSRF e cookies](https://docs.spring.io/spring-security/reference/7.0/servlet/exploits/csrf.html).
+Veja [Redis, persistência e testes reais](security-redis.md).
+Referências: [CSRF no Spring Security](https://docs.spring.io/spring-security/reference/7.0/servlet/exploits/csrf.html)
+e [rotação de refresh tokens](https://www.rfc-editor.org/rfc/rfc9700.html#section-4.14).

@@ -57,6 +57,7 @@ class RedisSessionIntegrationTest {
     @Autowired private PasswordEncoder passwords;
     @Autowired private StringRedisTemplate redis;
     @Autowired private RedisRefreshTokenStore sessions;
+    @Autowired private javax.crypto.SecretKey signingKey;
     private final Set<String> createdKeys = new HashSet<>();
 
     @DynamicPropertySource
@@ -85,7 +86,7 @@ class RedisSessionIntegrationTest {
     }
 
     @Test
-    void fullLoginRotationReuseRevokesOnlyThatDeviceAndLogoutKeepsAccessValid() throws Exception {
+    void fullLoginRotationReuseAndLogoutInvalidateAccessImmediately() throws Exception {
         User user = customer();
         Login first = login(user);
         Login otherDevice = login(user);
@@ -101,10 +102,12 @@ class RedisSessionIntegrationTest {
         mvc.perform(post("/api/v1/auth/refresh").with(cookieCsrf(mvc, mapper)).cookie(tokenCookie(first.refresh()))).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/auth/refresh").with(cookieCsrf(mvc, mapper)).cookie(tokenCookie(second))).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/auth/refresh").with(cookieCsrf(mvc, mapper)).cookie(tokenCookie(otherDevice.refresh()))).andExpect(status().isOk());
-        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + first.access())).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + first.access())).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/auth/logout").with(cookieCsrf(mvc, mapper)).header("Authorization", "Bearer " + otherDevice.access()))
                 .andExpect(status().isNoContent()).andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
         assertThat(redis.opsForHash().get(RedisRefreshTokenStore.key(otherDevice.refresh().sessionId()), "revoked")).isEqualTo("1");
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + otherDevice.access()))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -190,7 +193,50 @@ class RedisSessionIntegrationTest {
                     .andExpect(status().isNoContent());
         }
         mvc.perform(post("/api/v1/auth/refresh").with(cookieCsrf(mvc, mapper)).cookie(tokenCookie(logged.refresh()))).andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + logged.access())).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + logged.access())).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void browserAutomaticallyRotatesAndRejectsAccessAfterCookieLogout() throws Exception {
+        Login logged = login(customer());
+        MvcResult renewed = mvc.perform(get("/api/v1/auth/me").cookie(tokenCookie(logged.refresh())))
+                .andExpect(status().isOk()).andExpect(cookie().httpOnly(AuthCookies.ACCESS, true)).andReturn();
+        RefreshToken next = refresh(renewed);
+        MvcResult parallel = mvc.perform(get("/api/v1/auth/me").cookie(tokenCookie(logged.refresh())))
+                .andExpect(status().isOk()).andReturn();
+        assertThat(refresh(parallel).value()).isEqualTo(next.value());
+        String access = renewed.getResponse().getCookie(AuthCookies.ACCESS).getValue();
+        mvc.perform(post("/api/v1/auth/logout").with(cookieCsrf(mvc, mapper)).cookie(tokenCookie(next)))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/v1/auth/me").cookie(new Cookie(AuthCookies.ACCESS, access)))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/auth/me").cookie(tokenCookie(next))).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void automaticRotationIsAtomicAcrossInstancesAndReuseAfterOverlapRevokesAccess() throws Exception {
+        RefreshToken first = create(Duration.ofMinutes(1));
+        RefreshToken next = first.automaticSuccessor(signingKey);
+        RedisRefreshTokenStore other = new RedisRefreshTokenStore(new StringRedisTemplate(redis.getConnectionFactory()));
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var a = executor.submit(() -> {
+                barrier.await();
+                return sessions.automatic(first, next, true);
+            });
+            var b = executor.submit(() -> {
+                barrier.await();
+                return other.automatic(first, first.automaticSuccessor(signingKey), true);
+            });
+            assertThat(a.get(10, TimeUnit.SECONDS).expiresAt()).isEqualTo(b.get(10, TimeUnit.SECONDS).expiresAt());
+        }
+        assertThat(sessions.inspect(next).userId()).isEqualTo(123);
+        sessions.assertActive(first.sessionId(), "123");
+        assertThatThrownBy(() -> sessions.assertActive(first.sessionId(), "999")).isInstanceOf(BadCredentialsException.class);
+        // Force the overlap deadline into the past without waiting on wall-clock timing.
+        redis.opsForHash().put(RedisRefreshTokenStore.key(first.sessionId()), "overlap:" + first.hash(), "0");
+        assertThatThrownBy(() -> sessions.automatic(first, next, false)).isInstanceOf(BadCredentialsException.class);
+        assertThatThrownBy(() -> sessions.assertActive(first.sessionId(), "123")).isInstanceOf(BadCredentialsException.class);
     }
 
     private boolean attemptRotation(RedisRefreshTokenStore store, RefreshToken previous, RefreshToken next,

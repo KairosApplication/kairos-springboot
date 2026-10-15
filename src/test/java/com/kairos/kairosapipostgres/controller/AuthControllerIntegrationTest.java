@@ -47,6 +47,8 @@ class AuthControllerIntegrationTest {
     @Autowired private CompanyRepository companies;
     @Autowired private PasswordEncoder passwords;
     @MockitoBean private RedisRefreshTokenStore sessions;
+    @Autowired private org.springframework.security.oauth2.jwt.JwtEncoder encoder;
+    @Autowired private org.springframework.security.oauth2.jwt.JwtDecoder decoder;
 
     @BeforeEach
     void setup() {
@@ -64,7 +66,7 @@ class AuthControllerIntegrationTest {
         MockCookie refresh = MockCookie.parse(result.getResponse().getHeader("Set-Cookie"));
         assertThat(refresh.getName()).isEqualTo(AuthCookies.REFRESH);
         assertThat(refresh.isHttpOnly()).isTrue();
-        assertThat(refresh.getPath()).isEqualTo("/api/v1/auth");
+        assertThat(refresh.getPath()).isEqualTo("/api/v1");
         assertThat(refresh.getSameSite()).isEqualTo("Lax");
         assertThat(refresh.getMaxAge()).isBetween(604790, 604800);
         assertThat(result.getRequest().getSession(false)).isNull();
@@ -74,7 +76,7 @@ class AuthControllerIntegrationTest {
                 .andExpect(jsonPath("$.roles[0]").value("CUSTOMER"));
         mvc.perform(get("/api/v1/products/list").header("Authorization", "Bearer " + access)).andExpect(status().isOk());
         mvc.perform(get("/api/v1/employees/list").header("Authorization", "Bearer " + access)).andExpect(status().isForbidden());
-        mvc.perform(get("/api/v1/auth/me").cookie(refresh)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/auth/me").cookie(new Cookie(AuthCookies.ACCESS, access))).andExpect(status().isOk());
         mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + refresh.getValue()))
                 .andExpect(status().isUnauthorized());
     }
@@ -129,7 +131,7 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
-    void redisOutageFailsLoginAndRefreshButDoesNotValidateAccessAgainstRedis() throws Exception {
+    void redisOutageFailsClosedForLoginRefreshAndAccess() throws Exception {
         User user = customer();
         String access = access(login(user.getEmail()));
         when(sessions.create(anyLong(), any(), any())).thenThrow(new RedisConnectionFailureException("offline"));
@@ -138,9 +140,9 @@ class AuthControllerIntegrationTest {
                 .andExpect(jsonPath("$.accessToken").doesNotExist());
         when(sessions.inspect(any())).thenThrow(new RedisConnectionFailureException("offline"));
         mvc.perform(post("/api/v1/auth/refresh").with(cookieCsrf(mvc, mapper)).cookie(refreshCookie())).andExpect(status().isServiceUnavailable());
-        clearInvocations(sessions);
-        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + access)).andExpect(status().isOk());
-        verifyNoInteractions(sessions);
+        doThrow(new RedisConnectionFailureException("offline")).when(sessions).assertActive(anyString(), anyString());
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + access))
+                .andExpect(status().isServiceUnavailable());
     }
 
     @Test
@@ -161,13 +163,16 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
-    void logoutIsIdempotentClearsCookieAndKeepsIssuedJwtValid() throws Exception {
+    void logoutIsIdempotentClearsBothCookiesAndRejectsIssuedJwt() throws Exception {
         String access = access(login(customer().getEmail()));
         mvc.perform(post("/api/v1/auth/logout").with(cookieCsrf(mvc, mapper)).header("Authorization", "Bearer " + access))
-                .andExpect(status().isNoContent()).andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
+                .andExpect(status().isNoContent()).andExpect(cookie().maxAge(AuthCookies.REFRESH, 0))
+                .andExpect(cookie().maxAge(AuthCookies.ACCESS, 0));
         verify(sessions).revokeAuthenticatedSession(anyString());
         mvc.perform(post("/api/v1/auth/logout").with(cookieCsrf(mvc, mapper))).andExpect(status().isNoContent());
-        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + access)).andExpect(status().isOk());
+        doThrow(new org.springframework.security.authentication.BadCredentialsException("revoked"))
+                .when(sessions).assertActive(anyString(), anyString());
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + access)).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -178,6 +183,95 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Credentials", "true"));
         mvc.perform(options("/api/v1/auth/refresh").header("Origin", "https://untrusted.example")
                         .header("Access-Control-Request-Method", "POST")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void apiRenewsMissingOrExpiredAccessAndContinuesOriginalRequest() throws Exception {
+        User user = customer();
+        MvcResult login = login(user.getEmail());
+        String access = access(login);
+        String expired = expired(access);
+        Cookie refresh = new Cookie(AuthCookies.REFRESH,
+                MockCookie.parse(login.getResponse().getHeader("Set-Cookie")).getValue());
+        var state = new RedisRefreshTokenStore.Session(user.getId(), Instant.now().plusSeconds(300));
+        when(sessions.automatic(any(), any(), anyBoolean())).thenReturn(state);
+        for (int mode = 0; mode < 3; mode++) {
+            var request = get("/api/v1/auth/me").cookie(refresh);
+            if (mode == 1) {
+                request.cookie(new Cookie(AuthCookies.ACCESS, expired));
+            }
+            if (mode == 2) {
+                request.header("Authorization", "Bearer " + expired);
+            }
+            mvc.perform(request).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.email").value(user.getEmail()))
+                    .andExpect(cookie().httpOnly(AuthCookies.ACCESS, true))
+                    .andExpect(cookie().httpOnly(AuthCookies.REFRESH, true))
+                    .andExpect(header().string("Cache-Control", "no-store"));
+        }
+        verify(sessions, times(3)).automatic(any(), any(), eq(true));
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + expired)
+                        .cookie(new Cookie(AuthCookies.ACCESS, access), refresh)).andExpect(status().isOk());
+        verify(sessions, times(3)).automatic(any(), any(), eq(true));
+    }
+
+    @Test
+    void invalidSignatureAndMismatchedSessionsNeverRenew() throws Exception {
+        User user = customer();
+        String access = access(login(user.getEmail()));
+        for (String token : new String[]{"forged", expired(access)}) {
+            mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + token).cookie(refreshCookie()))
+                    .andExpect(status().isUnauthorized());
+        }
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + expired(access)))
+                .andExpect(status().isUnauthorized());
+        verify(sessions, never()).automatic(any(), any(), anyBoolean());
+    }
+
+    @Test
+    void cookieRequestsRequireCsrfEvenWhenBearerHeaderIsPresent() throws Exception {
+        String access = access(login(customer().getEmail()));
+        mvc.perform(post("/api/v1/products/create").header("Authorization", "Bearer " + access)
+                        .cookie(new Cookie(AuthCookies.ACCESS, access)))
+                .andExpect(status().isForbidden());
+        verify(sessions, never()).assertActive(anyString(), anyString());
+        verify(sessions, never()).automatic(any(), any(), anyBoolean());
+    }
+
+    @Test
+    void jwtRequestsPreserveCsrfCookieUntilExplicitLogout() throws Exception {
+        MvcResult logged = login(customer().getEmail());
+        Cookie accessCookie = logged.getResponse().getCookie(AuthCookies.ACCESS);
+        MvcResult protection = mvc.perform(get("/api/v1/auth/login")).andExpect(status().isOk()).andReturn();
+        Cookie csrfCookie = protection.getResponse().getCookie(AuthCookies.CSRF);
+        String token = mapper.readTree(protection.getResponse().getContentAsString()).get("token").asText();
+        MvcResult authenticated = mvc.perform(get("/api/v1/auth/me").cookie(accessCookie, csrfCookie))
+                .andExpect(status().isOk()).andReturn();
+        assertThat(authenticated.getResponse().getHeaders("Set-Cookie"))
+                .noneMatch(value -> value.startsWith(AuthCookies.CSRF + "="));
+        mvc.perform(post("/api/v1/auth/logout").cookie(accessCookie, csrfCookie).header("X-CSRF-TOKEN", token))
+                .andExpect(status().isNoContent()).andExpect(cookie().maxAge(AuthCookies.CSRF, 0));
+    }
+
+    @Test
+    void expiredSignedAccessCanLogoutAndRedisFailurePreservesCookies() throws Exception {
+        String expired = expired(access(login(customer().getEmail())));
+        mvc.perform(post("/api/v1/auth/logout").with(cookieCsrf(mvc, mapper))
+                        .header("Authorization", "Bearer " + expired))
+                .andExpect(status().isNoContent()).andExpect(cookie().maxAge(AuthCookies.ACCESS, 0));
+        doThrow(new RedisConnectionFailureException("offline")).when(sessions).revokeAuthenticatedSession(anyString());
+        mvc.perform(post("/api/v1/auth/logout").with(cookieCsrf(mvc, mapper))
+                        .header("Authorization", "Bearer " + expired))
+                .andExpect(status().isServiceUnavailable()).andExpect(cookie().doesNotExist(AuthCookies.ACCESS));
+    }
+
+    private String expired(String token) {
+        var claims = org.springframework.security.oauth2.jwt.JwtClaimsSet.builder()
+                .claims(values -> values.putAll(decoder.decode(token).getClaims()))
+                .issuedAt(Instant.now().minusSeconds(1000)).expiresAt(Instant.now().minusSeconds(10)).build();
+        return encoder.encode(org.springframework.security.oauth2.jwt.JwtEncoderParameters.from(
+                org.springframework.security.oauth2.jwt.JwsHeader.with(
+                        org.springframework.security.oauth2.jose.jws.MacAlgorithm.HS256).build(), claims)).getTokenValue();
     }
 
     private Cookie refreshCookie() {
