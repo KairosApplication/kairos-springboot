@@ -32,6 +32,18 @@ O repositório inclui Maven Wrapper (`mvnw` e `mvnw.cmd`), então não é necess
 
 ## Redis local com Docker
 
+Para um ambiente completo e isolado, com API, PostgreSQL, Redis, contas fictícias
+e testes HTTP de autenticação, use o Compose de desenvolvimento:
+
+```sh
+docker compose -f compose.dev.yaml up -d --build api seed
+docker compose -f compose.dev.yaml --profile check run --rm smoke
+```
+
+A API fica em `http://127.0.0.1:8081`. Não é necessário configurar `.env`.
+Veja [ambiente de desenvolvimento e testes](docs/development-environment.md)
+para credenciais locais, testes automatizados, logs e limpeza.
+
 Com o Docker em execução, inicie somente o Redis:
 
 ```sh
