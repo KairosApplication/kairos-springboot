@@ -1,188 +1,247 @@
 package com.kairos.kairosapipostgres.controller;
 
-import com.kairos.kairosapipostgres.model.Customer;
 import com.kairos.kairosapipostgres.TestCompanyFactory;
-import com.kairos.kairosapipostgres.repository.CompanyRepository;
+import com.kairos.kairosapipostgres.model.Customer;
 import com.kairos.kairosapipostgres.model.User;
-import com.kairos.kairosapipostgres.repository.CustomerRepository;
-import com.kairos.kairosapipostgres.repository.UserRepository;
+import com.kairos.kairosapipostgres.repository.*;
+import com.kairos.kairosapipostgres.security.*;
 import jakarta.servlet.http.Cookie;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockCookie;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.utility.DockerImageName;
 import tools.jackson.databind.ObjectMapper;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Base64;
-import java.util.UUID;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.*;
+import static com.kairos.kairosapipostgres.TestCsrf.cookieCsrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(properties = {
-        "spring.autoconfigure.exclude=",
-        "spring.data.redis.url=redis://localhost:${test.redis.port:6379}",
-        "spring.session.timeout=15d",
-        "spring.session.data.redis.namespace=kairos:test:session",
-        "spring.datasource.url=jdbc:h2:mem:kairos_redis;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
-        "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.datasource.username=sa",
-        "spring.datasource.password=",
-        "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect"
-})
+/** Requires a real Redis. CI uses a service; local runs can opt into Testcontainers. */
+@SpringBootTest
 @AutoConfigureMockMvc
+@Transactional
 @EnabledIfSystemProperty(named = "integration.redis", matches = "true")
 class RedisSessionIntegrationTest {
-
-    private static final long SESSION_SECONDS = Duration.ofDays(15).toSeconds();
+    private static final AtomicLong CPF = new AtomicLong(62998224725L);
+    private static GenericContainer<?> container;
     @Autowired private MockMvc mvc;
-    @Autowired private ObjectMapper objectMapper;
+    @Autowired private ObjectMapper mapper;
     @Autowired private UserRepository users;
     @Autowired private CustomerRepository customers;
-    @Autowired private PasswordEncoder passwordEncoder;
-    @Autowired private StringRedisTemplate redis;
     @Autowired private CompanyRepository companies;
+    @Autowired private PasswordEncoder passwords;
+    @Autowired private StringRedisTemplate redis;
+    @Autowired private RedisRefreshTokenStore sessions;
+    private final Set<String> createdKeys = new HashSet<>();
 
-    @Test
-    void shouldAuthenticatePublicRegistrationAndStoreCompanyAndSessionInRedis() throws Exception {
-        var company = TestCompanyFactory.create(companies);
-        String email = UUID.randomUUID() + "@example.com";
-        CsrfSession csrf = csrf(null);
-        MvcResult result = mvc.perform(post("/api/v1/users/registration").cookie(csrf.cookie())
-                        .header(csrf.header(), csrf.token())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "name": "Ana", "lastName": "Silva", "birthDate": "2000-01-01",
-                                  "password": "secret", "email": "%s", "cpf": "11144477735",
-                                  "companyId": %d
-                                }
-                                """.formatted(email, company.getId())))
-                .andExpect(status().isCreated()).andReturn();
-        MockCookie cookie = responseCookie(result);
-        assertThat(cookie.getValue()).isNotEqualTo(csrf.cookie().getValue());
-        assertThat(redis.getExpire(sessionKey(cookie))).isBetween(SESSION_SECONDS - 10, SESSION_SECONDS);
-        Long userId = users.findByEmail(email).orElseThrow().getId();
-        assertThat(customers.findByUserId(userId).orElseThrow().getCompany().getId()).isEqualTo(company.getId());
-        mvc.perform(get("/api/v1/auth/me").cookie(cookie))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.email").value(email));
-        mvc.perform(post("/api/v1/auth/logout").cookie(cookie).header(csrf.header(), csrf.token()))
-                .andExpect(status().isForbidden());
-        CsrfSession renewed = csrf(cookie);
-        mvc.perform(post("/api/v1/auth/logout").cookie(cookie).header(renewed.header(), renewed.token()))
-                .andExpect(status().isNoContent());
-    }
-
-    @Test
-    void shouldRestoreOnlyTheCookieSessionAndRenewRedisTtlAndCookie() throws Exception {
-        LoginSession login = login();
-        String key = sessionKey(login.cookie());
-        assertThat(login.cookie().getMaxAge()).isEqualTo(SESSION_SECONDS);
-        assertThat(login.cookie().isHttpOnly()).isTrue();
-        assertThat(login.cookie().getSameSite()).isEqualTo("Lax");
-        assertThat(redis.getExpire(key)).isBetween(SESSION_SECONDS - 10, SESSION_SECONDS);
-
-        redis.expire(key, Duration.ofMinutes(1));
-        MvcResult resumed = mvc.perform(get("/api/v1/auth/me").cookie(login.cookie()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email").value(login.email()))
-                .andExpect(jsonPath("$.roles[0]").value("CUSTOMER"))
-                .andReturn();
-        MockCookie renewed = responseCookie(resumed);
-        assertThat(renewed.getValue()).isEqualTo(login.cookie().getValue());
-        assertThat(renewed.getMaxAge()).isEqualTo(SESSION_SECONDS);
-        assertThat(redis.getExpire(key)).isBetween(SESSION_SECONDS - 10, SESSION_SECONDS);
-
-        mvc.perform(get("/api/v1/auth/me"))
-                .andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/v1/auth/me").cookie(new Cookie("JSESSIONID",
-                        Base64.getEncoder().encodeToString(UUID.randomUUID().toString()
-                                .getBytes(StandardCharsets.UTF_8)))))
-                .andExpect(status().isUnauthorized());
-        redis.delete(key);
-    }
-
-    @Test
-    void shouldRejectExpiredSessionEvenWhenAnotherLoginExistsInRedis() throws Exception {
-        LoginSession expired = login();
-        LoginSession active = login();
-        redis.expire(sessionKey(expired.cookie()), Duration.ZERO);
-
-        mvc.perform(get("/api/v1/auth/me").cookie(expired.cookie()))
-                .andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/v1/auth/me").cookie(active.cookie()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.email").value(active.email()));
-        redis.delete(sessionKey(active.cookie()));
-    }
-
-    @Test
-    void shouldRemoveSessionFromRedisOnLogout() throws Exception {
-        LoginSession login = login();
-        CsrfSession csrf = csrf(login.cookie());
-        mvc.perform(post("/api/v1/auth/logout").cookie(login.cookie())
-                        .header(csrf.header(), csrf.token()))
-                .andExpect(status().isNoContent());
-        assertThat(redis.hasKey(sessionKey(login.cookie()))).isFalse();
-        mvc.perform(get("/api/v1/auth/me").cookie(login.cookie()))
-                .andExpect(status().isUnauthorized());
-    }
-
-    private LoginSession login() throws Exception {
-        String email = UUID.randomUUID() + "@example.com";
-        User user = users.saveAndFlush(new User(null, "Ana", "Silva", LocalDate.of(2000, 1, 1),
-                UUID.randomUUID().toString(), email, passwordEncoder.encode("secret")));
-        customers.saveAndFlush(new Customer(null, user, TestCompanyFactory.create(companies)));
-        CsrfSession csrf = csrf(null);
-        MvcResult result = mvc.perform(post("/api/v1/auth/login").cookie(csrf.cookie())
-                        .header(csrf.header(), csrf.token())
-                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                        .param("email", email).param("password", "secret"))
-                .andExpect(status().isNoContent()).andReturn();
-        MockCookie authenticated = responseCookie(result);
-        assertThat(authenticated.getValue()).isNotEqualTo(csrf.cookie().getValue());
-        assertThat(redis.hasKey(sessionKey(csrf.cookie()))).isFalse();
-        return new LoginSession(email, authenticated);
-    }
-
-    private CsrfSession csrf(Cookie cookie) throws Exception {
-        var request = get("/api/v1/auth/login");
-        if (cookie != null) {
-            request.cookie(cookie);
+    @DynamicPropertySource
+    static void redisProperties(DynamicPropertyRegistry registry) {
+        if (Boolean.getBoolean("integration.redis.container")) {
+            container = new GenericContainer<>(DockerImageName.parse("redis:8.6-alpine")).withExposedPorts(6379);
+            container.start();
+            registry.add("spring.data.redis.url", () -> "redis://" + container.getHost() + ":" + container.getMappedPort(6379));
+        } else {
+            registry.add("spring.data.redis.url", () -> "redis://127.0.0.1:" + System.getProperty("test.redis.port", "6379"));
         }
-        MvcResult result = mvc.perform(request).andExpect(status().isOk()).andReturn();
-        var body = objectMapper.readTree(result.getResponse().getContentAsString());
-        return new CsrfSession(responseCookie(result), body.get("headerName").asText(), body.get("token").asText());
     }
 
-    private MockCookie responseCookie(MvcResult result) {
-        return result.getResponse().getHeaders("Set-Cookie").stream()
-                .map(MockCookie::parse)
-                .filter(cookie -> "JSESSIONID".equals(cookie.getName()) && cookie.getMaxAge() > 0)
-                .findFirst().orElseThrow();
+    @AfterEach
+    void removeOnlySessionsCreatedByThisTest() {
+        if (!createdKeys.isEmpty()) {
+            redis.delete(createdKeys);
+        }
     }
 
-    private String sessionKey(Cookie cookie) {
-        String id = new String(Base64.getDecoder().decode(cookie.getValue()), StandardCharsets.UTF_8);
-        return "kairos:test:session:sessions:" + id;
+    @AfterAll
+    static void stopIsolatedContainer() {
+        if (container != null) {
+            container.stop();
+        }
     }
 
-    private record LoginSession(String email, MockCookie cookie) {
+    @Test
+    void fullLoginRotationReuseRevokesOnlyThatDeviceAndLogoutKeepsAccessValid() throws Exception {
+        User user = customer();
+        Login first = login(user);
+        Login otherDevice = login(user);
+        String key = track(first.refresh());
+        assertThat(redis.getExpire(key)).isBetween(604790L, 604800L);
+        assertThat(redis.opsForHash().entries(key).toString()).doesNotContain(first.refresh().value());
+        MvcResult refreshed = mvc.perform(post("/api/v1/auth/refresh").with(cookieCsrf(mvc, mapper)).cookie(tokenCookie(first.refresh())))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.refreshToken").doesNotExist()).andReturn();
+        RefreshToken second = refresh(refreshed);
+        assertThat(second.value()).isNotEqualTo(first.refresh().value());
+        assertThat(redis.opsForHash().get(key, "t:" + first.refresh().hash())).isEqualTo("used");
+        assertThat(redis.opsForHash().get(key, "t:" + second.hash())).isEqualTo("active");
+        mvc.perform(post("/api/v1/auth/refresh").with(cookieCsrf(mvc, mapper)).cookie(tokenCookie(first.refresh()))).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/auth/refresh").with(cookieCsrf(mvc, mapper)).cookie(tokenCookie(second))).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/auth/refresh").with(cookieCsrf(mvc, mapper)).cookie(tokenCookie(otherDevice.refresh()))).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + first.access())).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/auth/logout").with(cookieCsrf(mvc, mapper)).header("Authorization", "Bearer " + otherDevice.access()))
+                .andExpect(status().isNoContent()).andExpect(cookie().maxAge(AuthCookies.REFRESH, 0));
+        assertThat(redis.opsForHash().get(RedisRefreshTokenStore.key(otherDevice.refresh().sessionId()), "revoked")).isEqualTo("1");
     }
 
-    private record CsrfSession(MockCookie cookie, String header, String token) {
+    @Test
+    void unknownHashCannotRevokeEvenWhenLocatorIsKnown() {
+        RefreshToken valid = create(Duration.ofMinutes(1));
+        RefreshToken forged = RefreshToken.rotate(valid.sessionId());
+        assertThatThrownBy(() -> sessions.inspect(forged)).isInstanceOf(BadCredentialsException.class);
+        sessions.revoke(forged);
+        assertThat(sessions.inspect(valid).userId()).isEqualTo(123);
+        RefreshToken unknown = RefreshToken.create();
+        assertThatThrownBy(() -> sessions.inspect(unknown)).isInstanceOf(BadCredentialsException.class);
+        assertThat(sessions.inspect(valid).userId()).isEqualTo(123);
+    }
+
+    @Test
+    void rotationPreservesAbsoluteExpiryAndAllConsumedHashesUntilExpiry() throws Exception {
+        RefreshToken first = create(Duration.ofSeconds(4));
+        String key = track(first);
+        long initialTtl = redis.getExpire(key, TimeUnit.MILLISECONDS);
+        Instant expires = sessions.inspect(first).expiresAt();
+        Thread.sleep(150);
+        RefreshToken second = RefreshToken.rotate(first.sessionId());
+        assertThat(sessions.rotate(first, second).expiresAt()).isEqualTo(expires);
+        assertThat(redis.getExpire(key, TimeUnit.MILLISECONDS)).isLessThan(initialTtl);
+        assertThat(redis.opsForHash().hasKey(key, "t:" + first.hash())).isTrue();
+        Thread.sleep(4100);
+        assertThatThrownBy(() -> sessions.inspect(second)).isInstanceOf(BadCredentialsException.class);
+        assertThat(redis.hasKey(key)).isFalse();
+    }
+
+    @Test
+    void concurrentInstancesAcceptOnlyOneRotationThenRevokeTheFamilyForReuse() throws Exception {
+        RefreshToken first = create(Duration.ofMinutes(1));
+        RefreshToken nextA = RefreshToken.rotate(first.sessionId());
+        RefreshToken nextB = RefreshToken.rotate(first.sessionId());
+        RedisRefreshTokenStore secondInstance = new RedisRefreshTokenStore(new StringRedisTemplate(redis.getConnectionFactory()));
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var a = executor.submit(() -> attemptRotation(sessions, first, nextA, barrier));
+            var b = executor.submit(() -> attemptRotation(secondInstance, first, nextB, barrier));
+            assertThat((a.get(10, TimeUnit.SECONDS) ? 1 : 0) + (b.get(10, TimeUnit.SECONDS) ? 1 : 0)).isEqualTo(1);
+        }
+        assertThatThrownBy(() -> sessions.inspect(nextA)).isInstanceOf(BadCredentialsException.class);
+        assertThatThrownBy(() -> sessions.inspect(nextB)).isInstanceOf(BadCredentialsException.class);
+    }
+
+    @Test
+    void logoutRacingRotationAlwaysPreventsFurtherRefresh() throws Exception {
+        RefreshToken first = create(Duration.ofMinutes(1));
+        RefreshToken next = RefreshToken.rotate(first.sessionId());
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var rotate = executor.submit(() -> attemptRotation(sessions, first, next, barrier));
+            var logout = executor.submit(() -> {
+                barrier.await();
+                sessions.revoke(first);
+                return true;
+            });
+            rotate.get(10, TimeUnit.SECONDS);
+            logout.get(10, TimeUnit.SECONDS);
+        }
+        assertThatThrownBy(() -> sessions.inspect(next)).isInstanceOf(BadCredentialsException.class);
+        assertThatThrownBy(() -> sessions.inspect(first)).isInstanceOf(BadCredentialsException.class);
+    }
+
+    @Test
+    void logoutWithDifferentCookieRevokesOnlyTheVerifiedJwtSession() throws Exception {
+        User user = customer();
+        Login current = login(user);
+        Login other = login(user);
+        mvc.perform(post("/api/v1/auth/logout").with(cookieCsrf(mvc, mapper))
+                        .header("Authorization", "Bearer " + current.access()).cookie(tokenCookie(other.refresh())))
+                .andExpect(status().isNoContent());
+        assertThatThrownBy(() -> sessions.inspect(current.refresh())).isInstanceOf(BadCredentialsException.class);
+        assertThat(sessions.inspect(other.refresh()).userId()).isEqualTo(user.getId());
+    }
+
+    @Test
+    void logoutUsingOnlyRefreshCookieRevokesAndIsIdempotent() throws Exception {
+        Login logged = login(customer());
+        for (int i = 0; i < 2; i++) {
+            mvc.perform(post("/api/v1/auth/logout").with(cookieCsrf(mvc, mapper)).cookie(tokenCookie(logged.refresh())))
+                    .andExpect(status().isNoContent());
+        }
+        mvc.perform(post("/api/v1/auth/refresh").with(cookieCsrf(mvc, mapper)).cookie(tokenCookie(logged.refresh()))).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + logged.access())).andExpect(status().isOk());
+    }
+
+    private boolean attemptRotation(RedisRefreshTokenStore store, RefreshToken previous, RefreshToken next,
+                                     CyclicBarrier barrier) throws Exception {
+        barrier.await(5, TimeUnit.SECONDS);
+        try {
+            store.rotate(previous, next);
+            return true;
+        } catch (BadCredentialsException exception) {
+            return false;
+        }
+    }
+
+    private RefreshToken create(Duration ttl) {
+        RefreshToken token = RefreshToken.create();
+        track(token);
+        sessions.create(123, token, ttl);
+        return token;
+    }
+
+    private String track(RefreshToken token) {
+        String key = RedisRefreshTokenStore.key(token.sessionId());
+        createdKeys.add(key);
+        return key;
+    }
+
+    private Cookie tokenCookie(RefreshToken token) {
+        return new Cookie(AuthCookies.REFRESH, token.value());
+    }
+
+    private RefreshToken refresh(MvcResult result) {
+        RefreshToken token = RefreshToken.parse(MockCookie.parse(result.getResponse().getHeader("Set-Cookie")).getValue());
+        track(token);
+        return token;
+    }
+
+    private Login login(User user) throws Exception {
+        MvcResult result = mvc.perform(post("/api/v1/auth/login").with(cookieCsrf(mvc, mapper))
+                        .param("email", user.getEmail()).param("password", "test-password"))
+                .andExpect(status().isOk()).andReturn();
+        return new Login(mapper.readTree(result.getResponse().getContentAsString()).get("accessToken").asText(), refresh(result));
+    }
+
+    private User customer() {
+        long unique = CPF.getAndIncrement();
+        User user = users.saveAndFlush(new User(null, "Ana", "Silva", LocalDate.of(2000, 1, 1),
+                Long.toString(unique), unique + "@example.com", passwords.encode("test-password")));
+        customers.saveAndFlush(new Customer(null, user, TestCompanyFactory.create(companies)));
+        return user;
+    }
+
+    private record Login(String access, RefreshToken refresh) {
     }
 }

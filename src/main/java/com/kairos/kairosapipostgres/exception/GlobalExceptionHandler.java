@@ -12,6 +12,21 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+    public ResponseEntity<ApiErrorResponse> handleAuthentication() {
+        return response(HttpStatus.UNAUTHORIZED, "Invalid credentials or authentication session", Map.of());
+    }
+
+    @ExceptionHandler({org.springframework.dao.DataAccessResourceFailureException.class,
+            org.springframework.dao.QueryTimeoutException.class})
+    public ResponseEntity<ApiErrorResponse> handleInfrastructure() {
+        return response(HttpStatus.SERVICE_UNAVAILABLE, "Authentication infrastructure unavailable", Map.of());
+    }
+
+    @ExceptionHandler(org.springframework.data.redis.RedisSystemException.class)
+    public ResponseEntity<ApiErrorResponse> handleRedis() {
+        return response(HttpStatus.SERVICE_UNAVAILABLE, "Authentication infrastructure unavailable", Map.of());
+    }
     @ExceptionHandler(CompanyNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleCompanyNotFound(CompanyNotFoundException exception) {
         return response(HttpStatus.NOT_FOUND, exception.getMessage(), Map.of());

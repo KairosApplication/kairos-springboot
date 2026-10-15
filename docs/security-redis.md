@@ -1,70 +1,63 @@
-# Segurança, Redis e migrações
+# Segurança, Redis e PostgreSQL
 
-## Redis
+## Autenticação e Redis
 
-Defina `REDIS_URL` (por exemplo, `redis://localhost:6379`) e mantenha o
-Redis disponível antes de iniciar a API. Spring Session guarda as sessões HTTP
-no Redis; o cookie continua chamado `JSESSIONID`. O cache de
-`GET /api/v1/categories/list` também usa Redis, expira em cinco minutos e é
-invalidado ao criar, editar ou excluir uma categoria. A API não usa cache de
-memória como substituto caso o Redis falhe. Use `rediss://` quando o serviço
-Redis exigir TLS.
+A API usa JWT Bearer e refresh tokens em cookie HttpOnly; veja o
+[contrato e exemplos](authentication.md). Redis guarda apenas SHA-256 dos refresh
+tokens e metadados, nunca o refresh em texto puro. PostgreSQL continua responsável
+por usuários, senhas e permissões. A validação do access JWT não consulta os bancos.
+Consultas exigidas pelo recurso de negócio e cache de categorias continuam normais.
 
-As sessões expiram depois de **15 dias sem requisições**. Spring Session atualiza
-o último acesso e renova o TTL no Redis quando a sessão é usada. O cookie
-`JSESSIONID` é persistente, HttpOnly e SameSite=Lax; sua validade também é
-renovada em requisições autenticadas. Em HTTPS, ele recebe o atributo Secure;
-`SERVER_SERVLET_SESSION_COOKIE_SECURE=true` também força esse atributo.
+Cada login cria uma chave `kairos:auth:{sessionId}`. O hash contém `uid`, `expires`
+(em milissegundos), `revoked` e campos `t:<sha256>` com estado `active` ou `used`.
+Os scripts Lua usam o relógio do Redis. O TTL inicial é 7 dias e a rotação nunca
+altera a expiração absoluta. Todos os hashes consumidos ficam na mesma chave até
+a expiração. Isso mantém a operação em um único hash slot no Redis Cluster.
 
-O Compose usa AOF e o volume `redis-data` para preservar as sessões ao reiniciar
-o container. Excluir esse volume ou perder os dados do Redis encerra os logins.
-O cache de categorias continua com seu prazo independente de cinco minutos.
+A inspeção valida a prova do token antes de carregar permissões do PostgreSQL;
+a rotação revalida e troca o estado atomicamente. Logout e rotação compartilham
+a mesma chave, de modo que uma revogação impede toda renovação posterior.
+Se uma rotação vencer a corrida com logout, o JWT emitido pode continuar válido
+até expirar, mas o refresh resultante não pode renovar após a revogação.
 
-O namespace usa `spring.session.data.redis.namespace`, correspondente ao Spring
-Boot 4. Sessões antigas no namespace padrão `spring:session` precisam de novo
-login depois de aplicar essa configuração.
+Um locator conhecido com hash desconhecido não autoriza revogação. Um hash
+consumido reapresentado revoga a família inteira. O cliente deve serializar
+refresh: duas chamadas com o mesmo token podem produzir uma resposta 200 e
+outra 401, deixando também o novo refresh revogado. Outras sessões não são afetadas.
 
-### Retomar a sessão no mobile
+O Compose mantém AOF e volume `redis-data` e configura `noeviction`. Monitore memória:
+quando um limite é atingido, gravações podem falhar em vez de remover sessões.
+O AOF padrão usa fsync periódico e pode perder gravações recentes em falhas abruptas.
+Perda do volume exige novo login; perda parcial de registros consumidos compromete
+a detecção de reuso. Considere instância separada do cache, backups e durabilidade
+adequada ao ambiente. Não use comandos de limpeza global para testes ou operação.
 
-1. No primeiro acesso, obtenha o CSRF com `GET /api/v1/auth/login` e preserve o cookie.
-2. Envie o login como formulário para `POST /api/v1/auth/login`, ou o cadastro
-   como JSON para `POST /api/v1/users/registration`, com cookie e `X-CSRF-TOKEN`.
-   Um cadastro público bem-sucedido autentica o novo cliente automaticamente.
-3. Guarde o cookie atualizado e obtenha o novo CSRF em `GET /api/v1/auth/login`.
-4. Ao reabrir o aplicativo, envie o cookie salvo para `GET /api/v1/auth/me`.
-   Com 200, continue usando a API; com 401, apresente a tela de login.
-5. Use o cookie em todas as chamadas e o CSRF nos POST/PATCH/DELETE. No logout,
-   a API invalida a sessão; descarte também o cookie e o CSRF no aparelho.
+Credenciais ficam em `REDIS_URL` (`rediss://` quando houver TLS); configure
+`REDIS_CONNECT_TIMEOUT` e `REDIS_COMMAND_TIMEOUT` (padrão 2s). Login e refresh
+falham com 503 em indisponibilidade e não emitem tokens sem sessão controlada.
+Não há fallback em memória. Logout retorna 503 quando não consegue confirmar a
+revogação; o cliente deve tentar novamente. Access JWTs válidos continuam funcionando
+até expirar, exceto recursos cuja própria regra de negócio dependa do Redis.
 
-A consulta valida o ID específico do cookie e o contexto autenticado dessa
-sessão. Contar chaves ou verificar se o Redis contém algum registro não identifica
-o usuário: nele também existem sessões anônimas e cache de categorias.
+As antigas sessões JSESSIONID deixam de autenticar: usuários precisam fazer novo
+login. Não alteramos nem apagamos chaves antigas; elas expiram conforme o TTL anterior.
 
-O aplicativo precisa de um cookie jar persistente ou armazenamento seguro
-do cookie. A API não identifica um aparelho por IP ou pelo tamanho do Redis.
-Cada login pode criar uma sessão independente. Atividade contínua mantém a
-sessão válida sem limite absoluto; as permissões ficam na sessão e mudanças de
-perfil não são propagadas automaticamente para logins existentes. Redis precisa
-estar disponível para validar e renovar sessões. O fluxo mantém CSRF obrigatório.
-
-O mobile envia `companyId` junto dos dados do cadastro público. A API exige um
-ID positivo, confirma que a empresa existe e grava o vínculo em
-`customers.company_id` antes de autenticar. O cadastro administrativo de cliente
-também exige `companyId`. Empresas inexistentes retornam 404; ID ausente ou
-inválido retorna 400. As empresas precisam existir no PostgreSQL.
-
-Para executar os testes com Redis isolado disponível na porta 6379:
+Testes com Redis real (Docker em execução, contêiner descartável):
 
 ```sh
-./mvnw -Dintegration.redis=true verify
+./mvnw -B -ntp -Dintegration.redis=true -Dintegration.redis.container=true clean verify
 ```
 
-Use `-Dtest.redis.port=PORTA` para outra porta. Os testes usam H2 para os dados
-de usuário e Redis real para validar cookie, TTL, expiração e logout.
+Com Redis isolado já disponível, como na CI:
 
-Defina `CORS_ALLOWED_ORIGINS` com as origens do frontend separadas por vírgula,
-sem `/` final. Em produção, use HTTPS e configure
-`SERVER_SERVLET_SESSION_COOKIE_SECURE=true`.
+```sh
+./mvnw -B -ntp -Dintegration.redis=true -Dtest.redis.port=6379 clean verify
+```
+
+A suíte remove apenas as chaves que ela própria criou; não use um Redis de produção.
+A suíte padrão usa mocks somente para os contratos web. Atomicidade, TTL, reuso,
+isolamento e corridas são verificados nos testes que exigem Redis real. Eles ficam
+explicitamente desabilitados quando `integration.redis` não está definido.
 
 ## PostgreSQL
 

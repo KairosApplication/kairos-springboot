@@ -23,40 +23,48 @@ import java.util.List;
 
 @Configuration
 public class OpenApiConfig {
-    private static final String SESSION = "sessionCookie";
+    private static final String SESSION = "bearerAuth";
 
     @Bean
     public OpenAPI kairosOpenApi() {
         return new OpenAPI()
                 .info(new Info().title("Kairos API")
                         .version("v1")
-                        .description("API REST do Kairos. Autenticação por sessão JSESSIONID, "
-                                + "válida por 15 dias sem atividade e renovada nas requisições. "
-                                + "Antes de POST/PATCH/DELETE, obtenha o token em GET /api/v1/auth/login "
-                                + "e envie o valor no header indicado pela resposta. Após o login ou cadastro público, "
-                                + "renove o token CSRF. Use GET /api/v1/auth/me para retomar uma sessão salva."))
+                        .description("API REST do Kairos. JWT Bearer de 15 minutos e refresh em cookie HttpOnly, "
+                                + "com sessão absoluta de 7 dias. Login, cadastro público, refresh e logout exigem "
+                                + "CSRF obtido em GET /api/v1/auth/login. Após login/cadastro, renove o CSRF. "
+                                + "Logout e reuso revogam renovações; JWTs emitidos continuam válidos até expirar."))
                 .components(new Components().addSchemas("ApiErrorResponse", new ObjectSchema()
                                 .addProperty("status", new Schema<>().type("integer"))
                                 .addProperty("error", new StringSchema())
                                 .addProperty("message", new StringSchema())
                                 .addProperty("validationErrors", new ObjectSchema()))
-                        .addSecuritySchemes(SESSION, new SecurityScheme().type(SecurityScheme.Type.APIKEY)
-                                .in(SecurityScheme.In.COOKIE).name("JSESSIONID")
-                                .description("Cookie de sessão criado pelo POST de login.")));
+                        .addSecuritySchemes(SESSION, new SecurityScheme().type(SecurityScheme.Type.HTTP)
+                                .scheme("bearer").bearerFormat("JWT")
+                                .description("Access token retornado pelo login ou refresh.")));
     }
 
     @Bean
     public OpenApiCustomizer documentOperations() {
         return api -> {
             document(api, "/api/v1/auth/login", PathItem.HttpMethod.GET, "Autenticação",
-                    "Obter token CSRF", "Inicia uma sessão anônima e devolve o nome do header e o token CSRF.",
+                    "Obter token CSRF", "Cria cookie CSRF e devolve o nome do header e o token CSRF.",
                     200, false, false);
             documentLogin(api);
             document(api, "/api/v1/auth/me", PathItem.HttpMethod.GET, "Autenticação",
-                    "Consultar sessão", "Valida o cookie no Redis e retorna e-mail e roles da sessão atual. "
-                            + "Retorna 401 se a sessão autenticada não existir ou tiver expirado.", 200, true, false);
+                    "Consultar identidade", "Valida o JWT localmente e retorna e-mail e roles do access token. "
+                            + "Retorna 401 se o JWT for inválido ou expirado.", 200, true, false);
             document(api, "/api/v1/auth/logout", PathItem.HttpMethod.POST, "Autenticação",
-                    "Encerrar sessão", "Invalida a sessão e remove o cookie JSESSIONID.", 204, true, true);
+                    "Encerrar sessão", "Revoga a sessão provada pelo cookie ou JWT e remove o refresh cookie. "
+                            + "Idempotente. JWTs emitidos continuam válidos até expirar.", 204, false, true);
+            document(api, "/api/v1/auth/refresh", PathItem.HttpMethod.POST, "Autenticação",
+                    "Renovar tokens", "Exige refresh cookie e CSRF. Rotaciona o refresh atomicamente no Redis. "
+                            + "Reuso revoga a família; serialize chamadas no cliente.", 200, false, true);
+            for (String path : List.of("/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout")) {
+                api.getPaths().get(path).getPost().getResponses()
+                        .addApiResponse("401", error("Autenticação inválida"))
+                        .addApiResponse("503", error("Infraestrutura indisponível"));
+            }
 
             resource(api, "users", "Usuários", true);
             resource(api, "employees", "Funcionários", false);
@@ -92,14 +100,14 @@ public class OpenApiConfig {
         String base = "/api/v1/" + name;
         String permission = switch (name) {
             case "employees" -> "Exige role MANAGER.";
-            case "products" -> "Leitura exige role CUSTOMER; escrita está bloqueada pela segurança atual.";
-            default -> "Exige sessão autenticada.";
+            case "products" -> "Leitura exige CUSTOMER, EMPLOYEE ou MANAGER; escrita exige MANAGER.";
+            default -> "Exige JWT e as permissões configuradas para o recurso.";
         };
         document(api, base + "/registration", PathItem.HttpMethod.POST, tag,
                 "Cadastrar " + tag.toLowerCase(), publicRegistration
                         ? "Cadastro público exige companyId de uma empresa existente, cria CUSTOMER "
-                        + "e autentica a sessão anônima. "
-                        + "Uma sessão já autenticada mantém seu usuário atual. Após o cadastro, renove o token CSRF."
+                        + "e retorna accessToken, tokenType, expiresIn e refresh cookie ao visitante. "
+                        + "Um JWT já autenticado mantém seu usuário atual. Após o cadastro, renove o token CSRF."
                         : permission, 201, !publicRegistration, true);
         document(api, base + "/list", PathItem.HttpMethod.GET, tag,
                 "Listar " + tag.toLowerCase(), permission, 200, true, false);
@@ -125,7 +133,7 @@ public class OpenApiConfig {
         if (secured) {
             operation.addSecurityItem(new SecurityRequirement().addList(SESSION));
         }
-        if (changesState) {
+        if (changesState && !secured) {
             operation.addParametersItem(new Parameter().in("header").name("X-CSRF-TOKEN")
                     .required(true).description("Token obtido em GET /api/v1/auth/login.")
                     .schema(new StringSchema()));
@@ -136,7 +144,7 @@ public class OpenApiConfig {
                 ? new ApiResponse().description("Sem conteúdo")
                 : generated == null ? new ApiResponse().description("Sucesso") : generated);
         if (secured) {
-            responses.addApiResponse("401", new ApiResponse().description("Sessão ausente ou expirada"));
+            responses.addApiResponse("401", new ApiResponse().description("JWT ausente ou inválido"));
             responses.addApiResponse("403", new ApiResponse().description(
                     "Acesso negado ou token CSRF inválido em operações de escrita"));
         }
@@ -169,8 +177,8 @@ public class OpenApiConfig {
         form.addRequiredItem("password");
         Operation login = new Operation().tags(List.of("Autenticação"))
                 .summary("Entrar")
-                .description("Envia e-mail e senha como formulário. O Spring Security cria a sessão e "
-                        + "renova o token CSRF. Use o cookie retornado nas próximas chamadas.")
+                .description("Envia e-mail e senha como formulário. Retorna accessToken, tokenType e expiresIn; "
+                        + "refresh exclusivamente no cookie HttpOnly. Obtenha novo CSRF após o login.")
                 .addParametersItem(new Parameter().in("header").name("X-CSRF-TOKEN")
                         .required(true).schema(new StringSchema())
                         .description("Token obtido em GET /api/v1/auth/login."))
@@ -178,7 +186,10 @@ public class OpenApiConfig {
                         "application/x-www-form-urlencoded",
                         new io.swagger.v3.oas.models.media.MediaType().schema(form))))
                 .responses(new ApiResponses()
-                        .addApiResponse("204", new ApiResponse().description("Sessão criada"))
+                        .addApiResponse("200", new ApiResponse().description("Access token e refresh cookie emitidos")
+                                .content(new Content().addMediaType("application/json",
+                                        new io.swagger.v3.oas.models.media.MediaType()
+                                                .schema(new Schema<>().$ref("#/components/schemas/TokenResponse")))))
                         .addApiResponse("401", new ApiResponse().description("Credenciais inválidas"))
                         .addApiResponse("403", new ApiResponse().description("Token CSRF inválido")));
         api.getPaths().get("/api/v1/auth/login").post(login);

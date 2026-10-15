@@ -9,9 +9,9 @@
         <Class name="com.kairos.kairosapipostgres.config.PostgresAuditInitializer"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
-    <!-- The filter intentionally shares Spring Session's configured CookieSerializer. -->
+    <!-- Constructor injection intentionally retains the Spring-managed Redis client. -->
     <Match>
-        <Class name="com.kairos.kairosapipostgres.config.SessionCookieRenewalFilter"/>
+        <Class name="com.kairos.kairosapipostgres.security.RedisRefreshTokenStore"/>
         <Method name="&lt;init&gt;"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>

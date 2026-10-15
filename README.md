@@ -15,7 +15,7 @@ Esta documentação acompanha o código desta branch. As funcionalidades ainda n
 - Flyway
 - Maven
 - Spring Boot Actuator
-- Spring Security (autenticação por sessão)
+- Spring Security (JWT Bearer e refresh tokens com rotação no Redis)
 
 ## Pré-requisitos
 
@@ -45,6 +45,52 @@ O segundo comando deve retornar `PONG`. O Redis fica acessível apenas na máqui
 docker compose down
 ```
 
+## API e Redis com Docker Compose
+
+Preencha o `.env` conforme a seção de variáveis abaixo. Para construir a imagem
+e iniciar a API junto com o Redis:
+
+```sh
+docker compose --profile app up -d --build
+docker compose --profile app logs -f api
+```
+
+A API fica disponível em `http://localhost:8080` (ou na porta `API_PORT` do
+`.env`). Dentro do contêiner, ela escuta em `8080` e usa `redis://redis:6379`;
+o Compose sobrescreve apenas essas duas configurações de conexão/porta.
+O PostgreSQL continua sendo o indicado por `DB_URL`, sem criar ou reinicializar
+um banco no Compose. A inicialização da API mantém as migrações Flyway e a
+estratégia `JPA_DDL_AUTO` já configuradas: confira o banco de destino antes de
+subir. Se o PostgreSQL estiver na máquina Windows, use `host.docker.internal`
+em vez de `localhost` na URL JDBC do contêiner.
+
+O serviço `api` usa o perfil `app`: `docker compose up -d redis` continua
+permitindo executar somente o Redis e iniciar a API pelo Maven/IDE.
+Para parar ambos, preservando o volume do Redis:
+
+```sh
+docker compose --profile app down
+```
+
+O `Dockerfile` usa duas etapas: compilação com Java 21 e o Maven Wrapper do
+projeto, seguida de execução com JRE 21 e usuário sem privilégios de root.
+O cache Maven é reaproveitado pelo BuildKit. A imagem final contém o JAR;
+`.env`, metadados Git e artefatos locais ficam fora do contexto pelo
+`.dockerignore`. Os testes não rodam no build da imagem; execute a suíte
+descrita em "Testes e integração contínua" antes de distribuir a imagem.
+Esse build segue a [estrutura multi-stage do Docker](https://docs.docker.com/build/building/multi-stage/).
+
+O Compose aguarda o health check do Redis antes de iniciar a API, conforme a
+[ordenação de serviços do Docker](https://docs.docker.com/compose/how-tos/startup-order/).
+O Redis mantém AOF no volume `redis-data` e usa `noeviction`, evitando remover
+sessões automaticamente por pressão de memória. AOF com o fsync padrão pode
+perder as gravações mais recentes em uma falha abrupta. Perder o volume exige
+novo login; não use `down -v` se quiser preservar as sessões. O Redis também
+armazena o cache atual da API: monitore a memória, pois `noeviction` recusa
+novas gravações quando um limite configurado é atingido. O controle
+de refresh tokens também depende de preservar os registros de tokens
+consumidos para detectar reutilização.
+
 ## Variáveis de ambiente
 
 Na raiz do projeto, copie `.env.example` para `.env` e preencha os dados do seu PostgreSQL:
@@ -56,6 +102,8 @@ DB_USERNAME=SEU_USUARIO
 DB_PASSWORD=SUA_SENHA
 REDIS_URL=redis://localhost:6379
 CORS_ALLOWED_ORIGINS=http://localhost:5173
+AUTH_SIGNING_KEY=BASE64_DE_PELO_MENOS_32_BYTES_ALEATORIOS
+AUTH_COOKIE_SECURE=false
 JPA_DDL_AUTO=update
 ```
 
@@ -79,6 +127,8 @@ DB_USERNAME=SEU_USUARIO
 DB_PASSWORD=SUA_SENHA
 REDIS_URL=redis://localhost:6379
 CORS_ALLOWED_ORIGINS=http://localhost:5173
+AUTH_SIGNING_KEY=BASE64_DE_PELO_MENOS_32_BYTES_ALEATORIOS
+AUTH_COOKIE_SECURE=false
 JPA_DDL_AUTO=update
 ```
 
@@ -90,7 +140,8 @@ A aplicação lê a conexão PostgreSQL e Redis do ambiente. O Flyway aplica as
 migrações e o Hibernate valida o esquema; não use `ddl-auto=update` em produção.
 Veja [segurança, Redis e migrações](docs/security-redis.md) para a configuração
 completa.
-O arquivo `src/main/resources/application.yaml` já contém a configuração abaixo:
+O trecho abaixo resume a conexão e o health check. Os parâmetros de JWT e cookies
+ficam em `app.auth` no mesmo arquivo; veja o [guia de autenticação](docs/authentication.md).
 
 ```yaml
 server:
@@ -113,8 +164,8 @@ spring:
     database: postgresql
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
-    show-sql: true
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    show-sql: false
     open-in-view: false
 
 management:
@@ -126,7 +177,7 @@ management:
 
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
 ```
 
 O Spring interpreta o `.env` como um arquivo de propriedades por causa desta configuração:
@@ -212,21 +263,30 @@ Se o banco estiver inacessível, o health check poderá retornar:
 
 ## API e autenticação
 
-Os recursos de usuários, funcionários, clientes, categorias, setores, produtos e compras ficam sob `/api/v1`. A documentação interativa está em [`/swagger-ui/index.html`](http://localhost:8080/swagger-ui/index.html) e a especificação JSON em [`/v3/api-docs`](http://localhost:8080/v3/api-docs) quando a aplicação estiver em execução. Veja o [guia do Swagger](docs/swagger.md) para testar autenticação por sessão e CSRF.
+Os recursos ficam sob `/api/v1`; Swagger em `/swagger-ui/index.html` e OpenAPI
+em `/v3/api-docs`. A autenticação usa access JWT Bearer de 15 minutos e refresh
+opaco em cookie HttpOnly, com sessão absoluta de 7 dias no Redis. Cada login
+cria uma sessão independente. Rotação atômica por Lua preserva os hashes consumidos;
+reuso revoga apenas a família correspondente. Logout impede renovações, mas
+JWTs já emitidos continuam válidos até expirar.
 
-A autenticação usa sessão HTTP e cookie `JSESSIONID`, não JWT nem HTTP Basic. O fluxo é: obter um token CSRF com `GET /api/v1/auth/login`, enviar `POST /api/v1/auth/login` como formulário com `email`, `password` e o header CSRF, e consultar `GET /api/v1/auth/me`. Login válido retorna `204`; o logout é `POST /api/v1/auth/logout` e também exige CSRF. No frontend, envie `credentials: "include"` em todas as chamadas.
+Configure `AUTH_SIGNING_KEY` com pelo menos 32 bytes aleatórios em Base64,
+`AUTH_COOKIE_SECURE=false` somente em HTTP local, e origens explícitas em
+`CORS_ALLOWED_ORIGINS`. Em produção, use HTTPS e cookies Secure; para cross-site,
+use `AUTH_COOKIE_SAME_SITE=None` com Secure e CSRF. O `.env.example` documenta
+todos os parâmetros. Nenhum segredo de assinatura padrão é fornecido.
 
-Além do login, são públicos `POST /api/v1/users/registration`, `/health` e as rotas do Swagger/OpenAPI. Os demais acessos seguem as regras atuais:
+O contrato do login continua sendo formulário `email`/`password`, com resposta
+200 contendo `accessToken`, `tokenType` e `expiresIn`. Login, cadastro público,
+refresh e logout exigem cookie CSRF e o header obtido em `GET /api/v1/auth/login`.
+Após login/cadastro, obtenha novo CSRF. Nas rotas protegidas, use
+`Authorization: Bearer <accessToken>`; o refresh cookie não autentica essas rotas.
+O cadastro público preserva `id`, `name`, `email` e acrescenta os campos de access
+token para visitantes; se já houver JWT autenticado, mantém a identidade atual.
 
-| Rotas | Permissão |
-| --- | --- |
-| `GET /api/v1/products/**` | Role `CUSTOMER` |
-| `/api/v1/employees/**` | Role `MANAGER` |
-| `GET /api/v1/purchases/**` | Role `MANAGER` |
-| `GET /api/v1/customers/{id}/recommendations` | O próprio cliente ou um gerente |
-| `/api/v1/users/**`, `/api/v1/customers/**`, `/api/v1/categories/**`, `/api/v1/sectors/**` | Usuário autenticado |
-
-As demais rotas, inclusive métodos de escrita em `/api/v1/products/**`, são negadas pela configuração atual. Requisições que alteram estado exigem token CSRF válido. Para o fluxo completo e as limitações atuais, consulte o [guia de autenticação](docs/authentication.md).
+As regras de CUSTOMER, EMPLOYEE e MANAGER foram preservadas no `SecurityConfig`.
+Para o contrato completo, exemplos e integração do cliente, consulte o
+[guia de autenticação](docs/authentication.md) e o [guia do Swagger](docs/swagger.md).
 
 ## Configuração no IntelliJ IDEA
 

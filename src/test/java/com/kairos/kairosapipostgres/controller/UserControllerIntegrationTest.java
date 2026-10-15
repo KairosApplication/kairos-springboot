@@ -13,7 +13,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.mock.web.MockHttpSession;
+import com.kairos.kairosapipostgres.security.RedisRefreshTokenStore;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,10 +45,14 @@ class UserControllerIntegrationTest {
     private PasswordEncoder passwordEncoder;
 
     @Autowired private CompanyRepository companies;
+    @MockitoBean private RedisRefreshTokenStore sessions;
     private Long companyId;
 
     @BeforeEach
     void cleanDatabase() {
+        org.mockito.Mockito.when(sessions.create(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.time.Instant.now().plusSeconds(604800));
         repository.deleteAll();
         companyId = TestCompanyFactory.create(companies).getId();
     }
@@ -102,12 +107,11 @@ class UserControllerIntegrationTest {
 
     @Test
     void shouldPreserveAuthenticatedManagerWhenRegisteringCustomer() throws Exception {
-        MockHttpSession session = new MockHttpSession();
-        mockMvc.perform(post("/api/v1/users/registration").session(session)
+        mockMvc.perform(post("/api/v1/users/registration")
                         .with(user("manager@example.com").roles("MANAGER")).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(validRegistration()))
                 .andExpect(status().isCreated());
-        mockMvc.perform(get("/api/v1/auth/me").session(session))
+        mockMvc.perform(get("/api/v1/auth/me").with(user("manager@example.com").roles("MANAGER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("manager@example.com"))
                 .andExpect(jsonPath("$.roles[0]").value("MANAGER"));
