@@ -25,4 +25,11 @@ public class Sector {
 
     @Column(nullable = false)
     private String type;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_id")
+    private Company company;
+
+    public Sector(Long id, String name, String type) {
+        this(id, name, type, null);
+    }
 }

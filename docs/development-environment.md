@@ -7,6 +7,7 @@ somente `compose.dev.yaml`, sem utilizar as credenciais do `.env` da API nem ace
 ```sh
 docker compose -f compose.dev.yaml up -d --build api seed
 docker compose -f compose.dev.yaml --profile check run --rm smoke
+docker compose -f compose.dev.yaml --profile check run --rm smoke python /checks/history_smoke.py
 ```
 
 A API aplica Flyway e valida o schema antes da carga de dados fictícios.
@@ -31,10 +32,18 @@ Contas fictícias:
 | --- | --- | --- |
 | Gerente | manager@kairos.local | Kairos-Dev-Only!123 |
 | Cliente | customer@kairos.local | Kairos-Dev-Only!123 |
+| Repositor | stocker@kairos.local | Kairos-Dev-Only!123 |
 
 A empresa fictícia é `company@kairos.local`. A carga é idempotente: repetir `seed`
 não duplica registros nem troca senhas de contas existentes. Essas credenciais
 são fixtures e pertencem exclusivamente ao banco local deste Compose.
+
+As fixtures incluem também estoque, produto e prateleira para testar reposições.
+`redis-history-api` executa o FastAPI real do repositório `kairos-data`, em commit
+fixado no build, e `redis-history` fornece seu cache semanal. Ambos ficam na rede
+interna, sem portas publicadas. A chave interna usa um volume próprio; o serviço
+Python não recebe a chave de assinatura JWT. A autenticação mantém seu Redis
+persistente separado. Veja [integração e fluxo completo](restocking-redis-api.md).
 
 O JWT dura **15 segundos neste ambiente**, para exercitar a renovação. O padrão da
 API continua 15 minutos. `DEV_AUTH_ACCESS_TTL=15m` pode ser usado para desenvolvimento
