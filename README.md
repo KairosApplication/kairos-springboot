@@ -370,3 +370,15 @@ No ruleset da `main`, exija `Analyze Java`, `Build and test`,
 `Dependency vulnerability check`, pois esse workflow roda apenas quando o build
 Maven é alterado. Rulesets e o secret scanning nativo são configurações do
 repositório no GitHub e não são representados integralmente por estes arquivos.
+
+<!-- docs-bot:start -->
+## Documentação
+
+Java **21**, Spring Boot **4.0.7**, **93** rotas mapeadas.
+
+- [Referência de rotas](docs/api-endpoints.md)
+- [Autenticação por sessão](docs/authentication.md)
+- [Dependabot](docs/dependabot.md)
+- [Segurança, Redis e migrações](docs/security-redis.md)
+- [Swagger / OpenAPI](docs/swagger.md)
+<!-- docs-bot:end -->
