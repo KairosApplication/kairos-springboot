@@ -34,4 +34,11 @@ public class Product {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_id")
+    private Company company;
+
+    public Product(Long id, String brand, BigDecimal price, String name, Category category) {
+        this(id, brand, price, name, category, null);
+    }
 }

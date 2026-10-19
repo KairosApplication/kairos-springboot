@@ -4,6 +4,8 @@ import com.kairos.kairosapipostgres.dto.request.RestockingRequest;
 import com.kairos.kairosapipostgres.dto.request.RestockingUpdateRequest;
 import com.kairos.kairosapipostgres.dto.response.RestockingResponse;
 import com.kairos.kairosapipostgres.service.RestockingService;
+import com.kairos.kairosapipostgres.service.RestockingWeeklyHistory;
+import com.kairos.kairosapipostgres.dto.response.RestockingWeekResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,9 +18,18 @@ import java.util.Optional;
 @RequestMapping("/api/v1/restockings")
 public class RestockingController {
     private final RestockingService service;
+    private final RestockingWeeklyHistory history;
 
-    public RestockingController(RestockingService service) {
+    public RestockingController(RestockingService service, RestockingWeeklyHistory history) {
         this.service = service;
+        this.history = history;
+    }
+
+    @GetMapping("/week")
+    public ResponseEntity<RestockingWeekResponse> week(@RequestParam(required = false) Long employeeId,
+                                                       @RequestParam(defaultValue = "100") int limit) {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(history.week(employeeId, limit));
     }
 
     @PostMapping("/registration")

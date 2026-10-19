@@ -2,7 +2,7 @@ name: Development environment
 
 on:
   pull_request:
-    branches: [main, chore/schema-alignment-local-redis]
+    branches: [main, chore/schema-alignment-local-redis, chore/development-test-environment]
     paths:
       - compose.dev.yaml
       - development/**
@@ -33,6 +33,8 @@ jobs:
         run: docker compose -f compose.dev.yaml up -d --build api seed
       - name: Verify login, automatic renewal and immediate logout
         run: docker compose -f compose.dev.yaml --profile check run --rm smoke
+      - name: Verify weekly restocking history through the real kairos-data API
+        run: docker compose -f compose.dev.yaml --profile check run --rm smoke python /checks/history_smoke.py
       - name: Capture diagnostics
         if: always()
         run: |

@@ -12,6 +12,15 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(InvalidRestockingException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidRestocking(InvalidRestockingException exception) {
+        return response(HttpStatus.BAD_REQUEST, exception.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccessDenied() {
+        return response(HttpStatus.FORBIDDEN, "Access denied", Map.of());
+    }
     @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
     public ResponseEntity<ApiErrorResponse> handleAuthentication() {
         return response(HttpStatus.UNAUTHORIZED, "Invalid credentials or authentication session", Map.of());
