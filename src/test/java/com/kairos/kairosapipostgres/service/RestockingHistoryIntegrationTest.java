@@ -31,8 +31,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(properties = {"test.history=true", "app.restocking-redis.enabled=true",
-        "app.restocking-redis.retry-delay=86400000",
-        "spring.datasource.url=jdbc:h2:mem:history;MODE=PostgreSQL;DB_CLOSE_DELAY=-1"})
+        "app.restocking-redis.retry-delay=86400000"})
 @AutoConfigureMockMvc
 class RestockingHistoryIntegrationTest {
     @Autowired private CompanyRepository companies;
@@ -98,6 +97,14 @@ class RestockingHistoryIntegrationTest {
             users.deleteAll();
             companies.deleteAll();
         });
+    }
+
+    @Test
+    void usesTheDatabaseSelectedByTheTestProfile() throws Exception {
+        String expected = "postgresql".equals(System.getProperty("integration.database")) ? "PostgreSQL" : "H2";
+        try (var connection = dataSource.getConnection()) {
+            assertThat(connection.getMetaData().getDatabaseProductName()).isEqualTo(expected);
+        }
     }
 
     @Test
