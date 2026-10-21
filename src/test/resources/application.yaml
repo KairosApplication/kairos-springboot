@@ -1,4 +1,10 @@
 app:
+  restocking-redis:
+    enabled: false
+    url: http://localhost:8001
+    internal-key: test-internal-key-only-32-characters
+    connect-timeout: 1s
+    read-timeout: 1s
   auth:
     # Public test fixture only; never use this key outside tests.
     signing-key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=

@@ -93,6 +93,11 @@ public class OpenApiConfig {
             document(api, "/api/v1/purchases/{id}/total", PathItem.HttpMethod.GET, "Compras",
                     "Calcular total", "Retorna o valor total da compra. Exige role MANAGER.",
                     200, true, false);
+            document(api, "/api/v1/restockings/week", PathItem.HttpMethod.GET, "Reposições",
+                    "Histórico semanal de reposições", "Semana atual, de segunda a segunda em America/Sao_Paulo. "
+                            + "Repositor consulta apenas o próprio histórico; gerente pode informar employeeId da mesma empresa. "
+                            + "limit aceita 1 a 500, padrão 100. PostgreSQL recupera cache vazio ou indisponível.",
+                    200, true, false);
         };
     }
 

@@ -25,6 +25,8 @@ class OpenApiIntegrationTest {
                         + "['application/x-www-form-urlencoded']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post.responses['200']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post.responses['503']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/restockings/week'].get.summary")
+                        .value("Histórico semanal de reposições"))
                 .andExpect(jsonPath("$.paths['/api/v1/users/registration'].post.responses['201']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/customers/{id}/recommendations'].get.summary")
                         .value("Recomendar produtos"))
