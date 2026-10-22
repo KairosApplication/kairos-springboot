@@ -218,6 +218,31 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void shouldRequireLiveSessionAndCsrfForChatContext() throws Exception {
+        User customer = createUser("chat@example.com");
+        customers.saveAndFlush(new Customer(null, customer));
+        CsrfSession session = login(customer.getEmail());
+        mvc.perform(post("/api/v1/auth/chat-context").session(session.session()))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/auth/chat-context").session(session.session())
+                .header(session.headerName(), "invalid"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/auth/chat-context").session(session.session())
+                .header(session.headerName(), session.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(customer.getEmail()))
+                .andExpect(jsonPath("$.roles[0]").value("CUSTOMER"));
+        CsrfSession anonymous = csrf(null);
+        mvc.perform(post("/api/v1/auth/chat-context").session(anonymous.session())
+                .header(anonymous.headerName(), anonymous.token()))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/auth/logout").session(session.session())
+                .header(session.headerName(), session.token())).andExpect(status().isNoContent());
+        mvc.perform(post("/api/v1/auth/chat-context"))
+                .andExpect(status().isForbidden());
+    }
+
     private CsrfSession login(String email) throws Exception {
         CsrfSession csrf = csrf(null);
         mvc.perform(post("/api/v1/auth/login").session(csrf.session())

@@ -40,7 +40,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/users/registration").permitAll()
                         .requestMatchers("/api/v1/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/me").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout", "/api/v1/auth/chat-context").authenticated()
 
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**")
                         .hasAnyRole("CUSTOMER", "EMPLOYEE", "MANAGER")

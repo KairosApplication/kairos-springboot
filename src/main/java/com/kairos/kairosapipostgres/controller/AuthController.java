@@ -40,6 +40,12 @@ public class AuthController {
         ));
     }
 
+    // Chamado pelo chatbot com a sessão e o CSRF existentes; o filtro Spring valida ambos.
+    @PostMapping("/chat-context")
+    public ResponseEntity<AuthResponse> chatContext(Authentication authentication) {
+        return me(authentication);
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
             HttpServletRequest request,
