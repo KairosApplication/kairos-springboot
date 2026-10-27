@@ -2,6 +2,13 @@ server:
   port: ${API_PORT:8080}
 
 app:
+  restocking-redis:
+    enabled: ${KAIROS_REDIS_API_ENABLED:false}
+    url: ${KAIROS_REDIS_API_URL:http://localhost:8001}
+    internal-key: ${KAIROS_INTERNAL_API_KEY:}
+    connect-timeout: ${KAIROS_REDIS_CONNECT_TIMEOUT:2s}
+    read-timeout: ${KAIROS_REDIS_READ_TIMEOUT:2s}
+    retry-delay: ${KAIROS_REDIS_RETRY_DELAY:5000}
   auth:
     signing-key: ${AUTH_SIGNING_KEY}
     issuer: ${AUTH_ISSUER:kairos-api}

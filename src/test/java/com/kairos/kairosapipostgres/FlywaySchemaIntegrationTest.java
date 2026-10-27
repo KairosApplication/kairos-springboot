@@ -20,7 +20,7 @@ class FlywaySchemaIntegrationTest {
                     .locations("classpath:db/migration")
                     .load();
 
-            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(2);
+            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(3);
 
             try (var statement = connection.createStatement();
                  var tables = statement.executeQuery("""
@@ -28,7 +28,7 @@ class FlywaySchemaIntegrationTest {
                          WHERE table_schema = 'public' AND table_name <> 'flyway_schema_history'
                          """)) {
                 tables.next();
-                assertThat(tables.getInt(1)).isEqualTo(20);
+                assertThat(tables.getInt(1)).isEqualTo(22);
             }
 
             try (var statement = connection.createStatement();

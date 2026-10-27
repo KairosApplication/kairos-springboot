@@ -30,4 +30,11 @@ public class Employee {
     @JoinColumn(name = "users_id", nullable = false, unique = true)
     private User user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_id")
+    private Company company;
+
+    public Employee(Long id, Position position, User user) {
+        this(id, position, user, null);
+    }
 }

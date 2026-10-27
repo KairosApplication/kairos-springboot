@@ -44,6 +44,11 @@ A API fica em `http://127.0.0.1:8081`. Não é necessário configurar `.env`.
 Veja [ambiente de desenvolvimento e testes](docs/development-environment.md)
 para credenciais locais, testes automatizados, logs e limpeza.
 
+O histórico semanal de reposições usa a API Redis do `kairos-data`, consumida
+internamente pela API principal. O Compose já constrói e inicia esse serviço,
+com chave interna gerada automaticamente e cache separado das sessões JWT.
+Consulte [fluxo, endpoint e recuperação de falhas](docs/restocking-redis-api.md).
+
 Com o Docker em execução, inicie somente o Redis:
 
 ```sh

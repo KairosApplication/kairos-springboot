@@ -12,11 +12,18 @@ services:
         if [ ! -s /secrets/signing-key ]; then
           head -c 32 /dev/urandom | base64 > /secrets/signing-key
         fi
+        if [ ! -s /history/internal-key ]; then
+          head -c 32 /dev/urandom | base64 > /history/internal-key
+        fi
         chown -R 10001:10001 /secrets
         chmod 700 /secrets
         chmod 600 /secrets/signing-key
+        chown -R 10001:10001 /history
+        chmod 700 /history
+        chmod 600 /history/internal-key
     volumes:
       - auth-secrets:/secrets
+      - history-secrets:/history
 
   postgres:
     image: postgres:17-alpine
@@ -57,6 +64,7 @@ services:
     command:
       - |
         export AUTH_SIGNING_KEY=$$(cat /run/kairos-secrets/signing-key)
+        export KAIROS_INTERNAL_API_KEY=$$(cat /run/history-secrets/internal-key)
         exec java -jar /app/app.jar
     environment:
       API_PORT: "8080"
@@ -65,6 +73,8 @@ services:
       DB_PASSWORD: kairos-local-only
       JPA_DDL_AUTO: validate
       REDIS_URL: redis://redis:6379
+      KAIROS_REDIS_API_ENABLED: "true"
+      KAIROS_REDIS_API_URL: http://redis-history-api:8001
       AUTH_ISSUER: kairos-development
       AUTH_AUDIENCE: kairos-development-clients
       AUTH_ACCESS_TTL: ${DEV_AUTH_ACCESS_TTL:-15s}
@@ -76,12 +86,15 @@ services:
       - "127.0.0.1:${DEV_API_PORT:-8081}:8080"
     volumes:
       - auth-secrets:/run/kairos-secrets:ro
+      - history-secrets:/run/history-secrets:ro
     depends_on:
       secrets:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      redis-history-api:
         condition: service_healthy
     healthcheck:
       test:
@@ -114,9 +127,49 @@ services:
       TEST_API_URL: http://api:8080/api/v1
     volumes:
       - ./development/smoke.py:/checks/smoke.py:ro
+      - ./development/history_smoke.py:/checks/history_smoke.py:ro
     depends_on:
       seed:
         condition: service_completed_successfully
+      redis-history-api:
+        condition: service_healthy
+
+  redis-history-api:
+    image: kairos-redis-history-api:local
+    build:
+      context: .
+      dockerfile: development/redis-api.Dockerfile
+      additional_contexts:
+        kairos_data: https://github.com/KairosApplication/kairos-data.git#10d6b08745b3cd885223670ec19d2befd3f87416
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        export KAIROS_INTERNAL_API_KEY=$$(cat /run/history-secrets/internal-key)
+        exec python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
+    environment:
+      REDIS_URL: redis://redis-history:6379/0
+      MAX_RESTOCKINGS_PER_WEEK: "500"
+    volumes:
+      - history-secrets:/run/history-secrets:ro
+    depends_on:
+      secrets:
+        condition: service_completed_successfully
+      redis-history:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis-history:
+    image: redis:8.6-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
 
   redis-test:
     profiles: ["test"]
@@ -157,4 +210,5 @@ volumes:
   postgres-data:
   redis-data:
   auth-secrets:
+  history-secrets:
   maven-cache:

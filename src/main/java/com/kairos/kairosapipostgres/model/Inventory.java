@@ -22,4 +22,11 @@ public class Inventory {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sector_id")
     private Sector sector;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_id")
+    private Company company;
+
+    public Inventory(Long id, Sector sector) {
+        this(id, sector, null);
+    }
 }
