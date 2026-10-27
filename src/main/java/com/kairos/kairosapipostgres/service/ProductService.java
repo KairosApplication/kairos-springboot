@@ -23,17 +23,22 @@ public class ProductService {
 
     private final ProductRepository repository;
     private final CategoryRepository categoryRepository;
+    private final RestockingAccess access;
 
-    public ProductService (ProductRepository productRepository, CategoryRepository categoryRepository) {
+    public ProductService (ProductRepository productRepository, CategoryRepository categoryRepository,
+                           RestockingAccess access) {
         this.repository = productRepository;
         this.categoryRepository = categoryRepository;
+        this.access = access;
     }
 
     @Transactional
     public ProductResponse save (ProductRequest product) {
+        var company = access.actor().getCompany();
         Category category = categoryRepository.findById (product.categoryId ())
                 .orElseThrow(() -> new CategoryNotFoundException ("Category not found"));
         Product productEntity = ProductMapper.toEntity(product, category);
+        productEntity.setCompany(company);
         if (repository.existsByName (productEntity.getName())) {
             throw new ProductAlreadyExistsException ("Product already exists");
         }
@@ -44,6 +49,7 @@ public class ProductService {
     @Transactional
     public Optional<ProductResponse> update (Long id, ProductUpdateRequest product) {
         Product productEntity = repository.findById (id).orElseThrow (() -> new ProductNotFoundException ("Product not found"));
+        access.requireCompany(productEntity.getCompany());
 
         String name = product.name() != null ? product.name().trim() : productEntity.getName();
         String brand = product.brand() != null ? product.brand().trim() : productEntity.getBrand();
@@ -67,8 +73,9 @@ public class ProductService {
 
     @Transactional
     public boolean deleteById (Long id) {
-        repository.findById(id)
+        Product product = repository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException ("Product not found"));
+        access.requireCompany(product.getCompany());
         repository.deleteById(id);
         return true;
     }
