@@ -38,6 +38,7 @@ public class CorsConfig {
         ));
 
         config.setAllowCredentials(true);
+        config.validateAllowCredentials();
 
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();
@@ -56,6 +57,7 @@ public class CorsConfig {
         source.registerCorsConfiguration("/api/v1/inventories/**", config);
         source.registerCorsConfiguration("/api/v1/restockings/**", config);
         source.registerCorsConfiguration("/api/v1/alerts/**", config);
+        source.registerCorsConfiguration("/api/v1/purchases/**", config);
         source.registerCorsConfiguration("/api/v1/auth/**", config);
 
         return source;

@@ -1,18 +1,46 @@
-# Segurança, Redis e migrações
+# Segurança, Redis e PostgreSQL
 
-## Redis
+## Autenticação e Redis
 
-Defina `REDIS_URL` (por exemplo, `redis://localhost:6379`) e mantenha o
-Redis disponível antes de iniciar a API. Spring Session guarda as sessões HTTP
-no Redis; o cookie continua chamado `JSESSIONID`. O cache de
-`GET /api/v1/categories/list` também usa Redis, expira em cinco minutos e é
-invalidado ao criar, editar ou excluir uma categoria. A API não usa cache de
-memória como substituto caso o Redis falhe. Use `rediss://` quando o serviço
-Redis exigir TLS.
+JWT em Bearer ou cookie HttpOnly identifica a sessão. Cada requisição autenticada
+consulta Redis para confirmar que ela está ativa: logout/reuso invalidam também
+JWTs ainda não expirados. Veja o [contrato](authentication.md).
 
-Defina `CORS_ALLOWED_ORIGINS` com as origens do frontend separadas por vírgula,
-sem `/` final. Em produção, use HTTPS e configure
-`SERVER_SERVLET_SESSION_COOKIE_SECURE=true`.
+Cada sessão usa um hash `kairos:auth:{sid}`, em um único slot no Redis Cluster.
+O hash contém usuário, prazo absoluto, revogação e hashes SHA-256 dos refresh
+tokens ativos/consumidos. Lua usa o relógio Redis e mantém o TTL absoluto em sete
+dias. Tokens desconhecidos não autorizam revogação.
+
+A renovação automática aceita um sucessor idêntico por três segundos para suportar
+requisições simultâneas. A API deriva o sucessor por HMAC; Redis nunca guarda o
+token completo. Fora dessa janela, reuso revoga a sessão. A renovação explícita
+não tem tolerância. Os testes cobrem ambas as regras e corridas entre instâncias.
+
+Configure AOF, volume persistente, backups, ACL/TLS e `noeviction`. Falta de memória
+ou indisponibilidade falha com 503, inclusive na validação de access tokens.
+Remover chaves de sessão exige novo login. Restaurar um backup antigo pode
+restaurar tokens anteriores à revogação: após recuperação com perda de dados,
+invalide as sessões restauradas. AOF/replicação não garantem perda zero em falhas.
+O Redis também é usado pelo cache de negócio.
+
+As antigas sessões JSESSIONID não autenticam. As chaves antigas expiram com o
+TTL anterior. Não há fallback de autenticação em memória.
+
+Testes com Redis real descartável (Docker em execução):
+
+```sh
+./mvnw -B -ntp -Dintegration.redis=true -Dintegration.redis.container=true verify
+```
+
+Com Redis isolado já disponível, como na CI:
+
+```sh
+./mvnw -B -ntp -Dintegration.redis=true -Dtest.redis.port=6379 verify
+```
+
+A suíte remove somente as próprias chaves; nunca aponte para produção. O padrão
+usa mocks nos testes web; TTL, rotação, concorrência, revogação e logout imediato
+são verificados com Redis real quando `integration.redis=true`.
 
 ## PostgreSQL
 
@@ -39,7 +67,6 @@ BOOTSTRAP_MANAGER_CPF=CPF_VALIDO
 BOOTSTRAP_MANAGER_NAME=Nome
 BOOTSTRAP_MANAGER_LAST_NAME=Sobrenome
 BOOTSTRAP_MANAGER_BIRTH_DATE=1990-01-01
-BOOTSTRAP_MANAGER_ZIP_CODE=01000-000
 ```
 
 Na inicialização, se ainda não houver gerente, a API cria usuário e funcionário

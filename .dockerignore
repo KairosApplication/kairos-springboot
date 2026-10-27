@@ -1,0 +1,10 @@
+# Only build inputs enter the context; .env, Git metadata and local artifacts stay out.
+**
+!pom.xml
+!mvnw
+!.mvn/
+!.mvn/**
+!config/
+!config/**
+!src/
+!src/**

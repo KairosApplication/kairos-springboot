@@ -1,10 +1,15 @@
 package com.kairos.kairosapipostgres.controller;
 
-import com.kairos.kairosapipostgres.dto.request.UserRequest;
+import com.kairos.kairosapipostgres.dto.request.UserRegistrationRequest;
 import com.kairos.kairosapipostgres.dto.request.UserUpdateRequest;
 import com.kairos.kairosapipostgres.dto.response.UserResponse;
 import com.kairos.kairosapipostgres.service.UserService;
 import com.kairos.kairosapipostgres.service.CustomerRegistrationService;
+import com.kairos.kairosapipostgres.service.TokenAuthService;
+import com.kairos.kairosapipostgres.dto.response.RegistrationResponse;
+import com.kairos.kairosapipostgres.dto.response.TokenResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,22 +24,30 @@ public class UserController {
 
     private final UserService userService;
     private final CustomerRegistrationService registrationService;
+    private final TokenAuthService tokenAuthService;
 
-    public UserController(UserService userService, CustomerRegistrationService registrationService) {
+    public UserController(UserService userService, CustomerRegistrationService registrationService,
+                          TokenAuthService tokenAuthService) {
         this.userService = userService;
         this.registrationService = registrationService;
+        this.tokenAuthService = tokenAuthService;
     }
 
     @PostMapping("/registration")
-    public ResponseEntity<UserResponse> register(
-            @Valid @RequestBody UserRequest request
+    public ResponseEntity<RegistrationResponse> register(
+            @Valid @RequestBody UserRegistrationRequest request,
+            HttpServletRequest servletRequest,
+            HttpServletResponse servletResponse
     ) {
 
         UserResponse cliente = registrationService.register(request);
+        TokenResponse tokens = servletRequest.getUserPrincipal() == null
+                ? tokenAuthService.login(request.email(), request.password(), servletRequest, servletResponse) : null;
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(cliente);
+                .cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(RegistrationResponse.of(cliente, tokens));
     }
 
     @GetMapping("/list")

@@ -1,5 +1,8 @@
 package com.kairos.kairosapipostgres.model;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -15,6 +18,7 @@ import java.math.BigDecimal;
 public class PurchaseProduct {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @JdbcTypeCode(SqlTypes.INTEGER)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -28,9 +32,6 @@ public class PurchaseProduct {
     @Column(nullable = false)
     private Integer quantity;
 
-    @Column(name = "promotion_id")
-    private Long promotionId;
-
-    @Column(nullable = false, precision = 12, scale = 2)
+    @Column(nullable = false, columnDefinition = "money")
     private BigDecimal amount;
 }
