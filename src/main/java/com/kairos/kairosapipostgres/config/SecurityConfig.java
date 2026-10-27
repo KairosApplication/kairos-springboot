@@ -90,6 +90,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/me").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/chat-context").authenticated()
 
+                        .requestMatchers(HttpMethod.GET, "/api/v1/store-map").hasRole("MANAGER")
+
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**")
                         .hasAnyRole("CUSTOMER", "EMPLOYEE", "MANAGER")
                         .requestMatchers("/api/v1/products/**").hasRole("MANAGER")

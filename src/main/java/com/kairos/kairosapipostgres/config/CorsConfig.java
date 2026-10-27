@@ -59,6 +59,7 @@ public class CorsConfig {
         source.registerCorsConfiguration("/api/v1/alerts/**", config);
         source.registerCorsConfiguration("/api/v1/purchases/**", config);
         source.registerCorsConfiguration("/api/v1/auth/**", config);
+        source.registerCorsConfiguration("/api/v1/store-map", config);
 
         return source;
     }
