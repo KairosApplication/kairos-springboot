@@ -7,7 +7,6 @@ import com.kairos.kairosapipostgres.exception.CpfInvalidException;
 import com.kairos.kairosapipostgres.exception.UserAlreadyExistsException;
 import com.kairos.kairosapipostgres.exception.UserNotFoundException;
 import com.kairos.kairosapipostgres.model.User;
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import com.kairos.kairosapipostgres.repository.UserRepository;
 import com.kairos.kairosapipostgres.repository.CustomerRepository;
 import com.kairos.kairosapipostgres.repository.EmployeeRepository;
@@ -68,8 +67,6 @@ class UserServiceTest {
         assertThat(saved.getName()).isEqualTo("Davi");
         assertThat(saved.getLastName()).isEqualTo("Dias");
         assertThat(saved.getBirthDate()).isEqualTo(LocalDate.of(2000, 2, 12));
-        assertThat(saved.getZipCode()).isEqualTo("01310-100");
-        assertThat(saved.getPlan()).isEqualTo(Plan.STANDART);
         assertThat(saved.getPassword()).isEqualTo("encoded-secret");
         assertThat(response).isEqualTo(new UserResponse(
                 1L, "Davi", "dias@example.com"
@@ -108,12 +105,11 @@ class UserServiceTest {
 
         UserResponse response = service.update(
                 1L,
-                new UserUpdateRequest(null, " new@example.com ", null)
+                new UserUpdateRequest(" new@example.com ", null)
         ).orElseThrow();
 
         assertThat(existing.getEmail()).isEqualTo("new@example.com");
         assertThat(existing.getCpf()).isEqualTo("52998224725");
-        assertThat(existing.getPlan()).isEqualTo(Plan.STANDART);
         assertThat(response.email()).isEqualTo("new@example.com");
         verify(repository).save(existing);
     }
@@ -128,7 +124,7 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> service.update(
                 1L,
-                new UserUpdateRequest(null, null, "111.444.777-35")
+                new UserUpdateRequest(null, "111.444.777-35")
         )).isInstanceOf(UserAlreadyExistsException.class)
                 .hasMessage("CPF already in use");
         verify(repository, never()).save(any());
@@ -205,8 +201,6 @@ class UserServiceTest {
                 "Dias",
                 LocalDate.of(2000, 2, 12),
                 "secret",
-                "01310-100",
-                Plan.STANDART,
                 "dias@example.com",
                 "529.982.247-25"
         );
@@ -220,9 +214,7 @@ class UserServiceTest {
                 LocalDate.of(2000, 2, 12),
                 "52998224725",
                 "dias@example.com",
-                "encoded-secret",
-                "01310-100",
-                Plan.STANDART
+                "encoded-secret"
         );
     }
 }

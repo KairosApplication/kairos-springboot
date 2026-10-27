@@ -1,6 +1,8 @@
 package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.User;
+import com.kairos.kairosapipostgres.TestCompanyFactory;
+import com.kairos.kairosapipostgres.repository.CompanyRepository;
 import com.kairos.kairosapipostgres.repository.UserRepository;
 import com.kairos.kairosapipostgres.repository.CustomerRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,6 +13,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import com.kairos.kairosapipostgres.security.RedisRefreshTokenStore;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,9 +44,17 @@ class UserControllerIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired private CompanyRepository companies;
+    @MockitoBean private RedisRefreshTokenStore sessions;
+    private Long companyId;
+
     @BeforeEach
     void cleanDatabase() {
+        org.mockito.Mockito.when(sessions.create(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.time.Instant.now().plusSeconds(604800));
         repository.deleteAll();
+        companyId = TestCompanyFactory.create(companies).getId();
     }
 
     @Test
@@ -68,9 +80,41 @@ class UserControllerIntegrationTest {
         assertThat(customers.existsByUserId(saved.getId())).isTrue();
         assertThat(saved.getLastName()).isEqualTo("Silva");
         assertThat(saved.getBirthDate()).hasToString("1995-05-20");
-        assertThat(saved.getZipCode()).isEqualTo("01310-100");
         assertThat(saved.getCpf()).isEqualTo("52998224725");
         assertThat(passwordEncoder.matches("secret", saved.getPassword())).isTrue();
+    }
+
+    @Test
+    void shouldRejectMissingCompanyWithoutCreatingUser() throws Exception {
+        mockMvc.perform(post("/api/v1/users/registration").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRegistration().replace("\"companyId\": " + companyId, "\"companyId\": null")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.validationErrors.companyId").value("A empresa é obrigatória"));
+        assertThat(repository.findByEmail("ana@example.com")).isEmpty();
+    }
+
+    @Test
+    void shouldRejectUnknownCompanyWithoutCreatingUser() throws Exception {
+        mockMvc.perform(post("/api/v1/users/registration").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRegistration().replace("\"companyId\": " + companyId,
+                                "\"companyId\": 2147483647")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Company not found"));
+        assertThat(repository.findByEmail("ana@example.com")).isEmpty();
+    }
+
+    @Test
+    void shouldPreserveAuthenticatedManagerWhenRegisteringCustomer() throws Exception {
+        mockMvc.perform(post("/api/v1/users/registration")
+                        .with(user("manager@example.com").roles("MANAGER")).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(validRegistration()))
+                .andExpect(status().isCreated());
+        mockMvc.perform(get("/api/v1/auth/me").with(user("manager@example.com").roles("MANAGER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("manager@example.com"))
+                .andExpect(jsonPath("$.roles[0]").value("MANAGER"));
     }
 
     @Test
@@ -128,7 +172,6 @@ class UserControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "plan": "CORPORATIVO",
                                   "email": "new@example.com",
                                   "cpf": "111.444.777-35"
                                 }
@@ -158,11 +201,10 @@ class UserControllerIntegrationTest {
                   "lastName": "Silva",
                   "birthDate": "1995-05-20",
                   "password": "secret",
-                  "zipCode": "01310-100",
-                  "plan": "STANDART",
                   "email": "ana@example.com",
-                  "cpf": "529.982.247-25"
+                  "cpf": "529.982.247-25",
+                  "companyId": %d
                 }
-                """;
+                """.formatted(companyId);
     }
 }

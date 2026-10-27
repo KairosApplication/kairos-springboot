@@ -1,0 +1,52 @@
+name: Development environment
+
+on:
+  pull_request:
+    branches: [main, chore/schema-alignment-local-redis, chore/development-test-environment]
+    paths:
+      - compose.dev.yaml
+      - development/**
+      - Dockerfile
+      - src/**
+      - pom.xml
+      - config/**
+      - .github/workflows/development-environment.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: development-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: PostgreSQL, Redis and authentication HTTP checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build and start isolated development environment
+        run: docker compose -f compose.dev.yaml up -d --build api seed
+      - name: Verify login, automatic renewal and immediate logout
+        run: docker compose -f compose.dev.yaml --profile check run --rm smoke
+      - name: Verify weekly restocking history through the real kairos-data API
+        run: docker compose -f compose.dev.yaml --profile check run --rm smoke python /checks/history_smoke.py
+      - name: Capture diagnostics
+        if: always()
+        run: |
+          mkdir -p target/development-diagnostics
+          docker compose -f compose.dev.yaml ps -a > target/development-diagnostics/services.txt
+          docker compose -f compose.dev.yaml logs --no-color > target/development-diagnostics/services.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: development-environment-diagnostics
+          path: target/development-diagnostics/
+          retention-days: 7
+      - name: Remove disposable environment
+        if: always()
+        run: docker compose -f compose.dev.yaml --profile check --profile test down -v

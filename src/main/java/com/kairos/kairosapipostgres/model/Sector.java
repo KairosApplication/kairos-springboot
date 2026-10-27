@@ -1,5 +1,8 @@
 package com.kairos.kairosapipostgres.model;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -14,6 +17,7 @@ import lombok.NoArgsConstructor;
 public class Sector {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @JdbcTypeCode(SqlTypes.INTEGER)
     private Long id;
 
     @Column(nullable = false, length = 100, unique = true)
@@ -21,4 +25,11 @@ public class Sector {
 
     @Column(nullable = false)
     private String type;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_id")
+    private Company company;
+
+    public Sector(Long id, String name, String type) {
+        this(id, name, type, null);
+    }
 }

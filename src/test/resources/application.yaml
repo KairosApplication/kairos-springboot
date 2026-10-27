@@ -1,10 +1,22 @@
+app:
+  restocking-redis:
+    enabled: false
+    url: http://localhost:8001
+    internal-key: test-internal-key-only-32-characters
+    connect-timeout: 1s
+    read-timeout: 1s
+  auth:
+    # Public test fixture only; never use this key outside tests.
+    signing-key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+    issuer: kairos-test
+    audience: kairos-tests
+    access-ttl: 15m
+    session-ttl: 7d
+    cookie-secure: false
+    cookie-same-site: Lax
 spring:
-  autoconfigure:
-    exclude: org.springframework.boot.session.data.redis.autoconfigure.SessionDataRedisAutoConfiguration
   cache:
     type: none
-  session:
-    store-type: none
   datasource:
     url: jdbc:h2:mem:kairos;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
     username: sa

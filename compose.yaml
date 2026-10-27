@@ -1,0 +1,68 @@
+services:
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      API_PORT: "8080"
+      REDIS_URL: redis://redis:6379
+      KAIROS_REDIS_API_ENABLED: "true"
+      KAIROS_REDIS_API_URL: http://redis-history-api:8001
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      redis-history-api:
+        condition: service_healthy
+
+  redis-history-api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: development/redis-api.Dockerfile
+      additional_contexts:
+        kairos_data: https://github.com/KairosApplication/kairos-data.git#10d6b08745b3cd885223670ec19d2befd3f87416
+    environment:
+      REDIS_URL: redis://redis-history:6379/0
+      KAIROS_INTERNAL_API_KEY: ${KAIROS_INTERNAL_API_KEY:-}
+      MAX_RESTOCKINGS_PER_WEEK: "500"
+    depends_on:
+      redis-history:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis-history:
+    profiles: ["app"]
+    image: redis:8.6-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8.6-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis-data:

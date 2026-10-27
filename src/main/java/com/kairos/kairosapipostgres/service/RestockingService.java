@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.Clock;
 
 @Service
 public class RestockingService {
@@ -20,54 +21,71 @@ public class RestockingService {
     private final EmployeeRepository employeeRepository;
     private final ShelfRepository shelfRepository;
     private final ProductRepository productRepository;
+    private final RestockingAccess access;
+    private final RestockingHistoryOutbox history;
+    private final Clock clock;
 
     public RestockingService(RestockingRepository repository, InventoryRepository inventoryRepository,
                              EmployeeRepository employeeRepository, ShelfRepository shelfRepository,
-                             ProductRepository productRepository) {
+                             ProductRepository productRepository, RestockingAccess access,
+                             RestockingHistoryOutbox history, Clock clock) {
         this.repository = repository;
         this.inventoryRepository = inventoryRepository;
         this.employeeRepository = employeeRepository;
         this.shelfRepository = shelfRepository;
         this.productRepository = productRepository;
+        this.access = access;
+        this.history = history;
+        this.clock = clock;
     }
 
     @Transactional
     public RestockingResponse save(RestockingRequest request) {
+        access.target(request.employeeId());
         Inventory inventory = inventory(request.inventoryId());
         Employee employee = employee(request.employeeId());
         Shelf shelf = shelf(request.shelfId());
         Product product = product(request.productId());
-        return RestockingMapper.toResponse(repository.save(
-                RestockingMapper.toEntity(request, inventory, employee, shelf, product)));
+        Restocking value = RestockingMapper.toEntity(request, inventory, employee, shelf, product);
+        value.setRestockingDate(clock.instant().atZone(RestockingWeek.ZONE).toLocalDateTime());
+        access.require(value);
+        validateQuantities(value);
+        value = repository.save(value);
+        history.enqueue(value, true);
+        return RestockingMapper.toResponse(value);
     }
 
     @Transactional(readOnly = true)
     public List<RestockingResponse> findAll() {
-        return repository.findAll().stream().map(RestockingMapper::toResponse).toList();
+        return repository.findByEmployeeCompanyId(access.actor().getCompany().getId()).stream()
+                .filter(access::visible).map(RestockingMapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public Optional<RestockingResponse> findById(Long id) {
-        return Optional.of(RestockingMapper.toResponse(repository.findById(id)
-                .orElseThrow(() -> new RestockingNotFoundException("Restocking not found"))));
+        Restocking value = repository.findById(id).orElseThrow(() -> new RestockingNotFoundException("Restocking not found"));
+        access.require(value);
+        return Optional.of(RestockingMapper.toResponse(value));
     }
 
     @Transactional(readOnly = true)
     public List<RestockingResponse> findByShelfId(Long shelfId) {
-        shelf(shelfId);
-        return repository.findByShelfId(shelfId).stream().map(RestockingMapper::toResponse).toList();
+        access.requireCompany(shelf(shelfId).getAisle().getSector().getCompany());
+        return repository.findByShelfId(shelfId).stream().filter(access::visible).map(RestockingMapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public List<RestockingResponse> findByInventoryId(Long inventoryId) {
-        inventory(inventoryId);
-        return repository.findByInventoryId(inventoryId).stream().map(RestockingMapper::toResponse).toList();
+        access.requireCompany(inventory(inventoryId).getCompany());
+        return repository.findByInventoryId(inventoryId).stream().filter(access::visible).map(RestockingMapper::toResponse).toList();
     }
 
     @Transactional
     public Optional<RestockingResponse> update(Long id, RestockingUpdateRequest request) {
-        Restocking restocking = repository.findById(id)
+        Restocking restocking = repository.locked(id)
                 .orElseThrow(() -> new RestockingNotFoundException("Restocking not found"));
+        access.require(restocking);
+        history.bypass(restocking);
         if (request.inventoryId() != null) {
             restocking.setInventory(inventory(request.inventoryId()));
         }
@@ -86,12 +104,17 @@ public class RestockingService {
         if (request.damagedQuantity() != null) {
             restocking.setDamagedQuantity(request.damagedQuantity());
         }
+        access.require(restocking);
+        validateQuantities(restocking);
+        history.bypass(restocking);
         return Optional.of(RestockingMapper.toResponse(repository.save(restocking)));
     }
 
     @Transactional
     public boolean deleteById(Long id) {
-        repository.findById(id).orElseThrow(() -> new RestockingNotFoundException("Restocking not found"));
+        Restocking value = repository.locked(id).orElseThrow(() -> new RestockingNotFoundException("Restocking not found"));
+        access.require(value);
+        history.bypass(value);
         repository.deleteById(id);
         return true;
     }
@@ -99,6 +122,13 @@ public class RestockingService {
     private Inventory inventory(Long id) {
         return inventoryRepository.findById(id)
                 .orElseThrow(() -> new InventoryNotFoundException("Inventory not found"));
+    }
+
+    private void validateQuantities(Restocking value) {
+        if (value.getRestockedQuantity() <= 0 || value.getDamagedQuantity() < 0
+                || value.getDamagedQuantity() > value.getRestockedQuantity()) {
+            throw new InvalidRestockingException("Damaged quantity must be between zero and restocked quantity");
+        }
     }
 
     private Employee employee(Long id) {

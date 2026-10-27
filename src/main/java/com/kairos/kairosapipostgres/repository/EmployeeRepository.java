@@ -12,4 +12,5 @@ import java.util.Optional;
 public interface EmployeeRepository extends
         UserOwnedRepository<Employee, Long> {
     boolean existsByPosition(Position position);
+    Optional<Employee> findByUserEmail(String email);
 }

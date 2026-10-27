@@ -2,6 +2,8 @@ package com.kairos.kairosapipostgres.repository;
 
 import com.kairos.kairosapipostgres.model.Product;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
@@ -51,6 +53,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     List<Product> findByBrand(String brand);
 
-    List<Product> findByPriceLessThanEqual(BigDecimal price);
+    @Query(value = "SELECT * FROM products p WHERE CAST(p.price AS NUMERIC) <= :price", nativeQuery = true)
+    List<Product> findByPriceLessThanEqual(@Param("price") BigDecimal price);
 
 }

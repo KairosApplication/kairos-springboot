@@ -1,6 +1,5 @@
 package com.kairos.kairosapipostgres.dto.request;
 
-import com.kairos.kairosapipostgres.model.enums.Plan;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -19,10 +18,6 @@ public record UserRequest(
         LocalDate birthDate,
         @NotBlank(message = "A senha é obrigatória")
         String password,
-        @NotBlank(message = "O CEP é obrigatório")
-        String zipCode,
-        @NotNull(message = "O plano é obrigatório")
-        Plan plan,
         @NotBlank(message = "O e-mail é obrigatório")
         @Email(message = "E-mail inválido")
         String email,
