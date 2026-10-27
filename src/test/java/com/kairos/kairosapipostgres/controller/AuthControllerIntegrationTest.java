@@ -265,6 +265,41 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isServiceUnavailable()).andExpect(cookie().doesNotExist(AuthCookies.ACCESS));
     }
 
+    @Test
+    void chatContextRequiresAuthenticationAndCsrfWithCookiesOrBearer() throws Exception {
+        User user = customer();
+        String access = access(login(user.getEmail()));
+        Cookie cookie = new Cookie(AuthCookies.ACCESS, access);
+        mvc.perform(post("/api/v1/auth/chat-context").cookie(cookie)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/auth/chat-context").cookie(cookie)
+                        .with(cookieCsrf(mvc, mapper)).header("X-CSRF-TOKEN", "invalid"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/auth/chat-context").cookie(cookie).with(cookieCsrf(mvc, mapper)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.email").value(user.getEmail()))
+                .andExpect(jsonPath("$.roles[0]").value("CUSTOMER"));
+        mvc.perform(post("/api/v1/auth/chat-context").header("Authorization", "Bearer " + access))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/auth/chat-context").header("Authorization", "Bearer " + access)
+                        .with(cookieCsrf(mvc, mapper)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.email").value(user.getEmail()))
+                .andExpect(jsonPath("$.roles[0]").value("CUSTOMER"));
+    }
+
+    @Test
+    void chatContextRejectsAnonymousAndRevokedSessions() throws Exception {
+        mvc.perform(post("/api/v1/auth/chat-context").with(cookieCsrf(mvc, mapper)))
+                .andExpect(status().isUnauthorized());
+        String access = access(login(customer().getEmail()));
+        Cookie cookie = new Cookie(AuthCookies.ACCESS, access);
+        mvc.perform(post("/api/v1/auth/logout").cookie(cookie).with(cookieCsrf(mvc, mapper)))
+                .andExpect(status().isNoContent());
+        verify(sessions).revokeAuthenticatedSession(anyString());
+        doThrow(new org.springframework.security.authentication.BadCredentialsException("revoked"))
+                .when(sessions).assertActive(anyString(), anyString());
+        mvc.perform(post("/api/v1/auth/chat-context").cookie(cookie).with(cookieCsrf(mvc, mapper)))
+                .andExpect(status().isUnauthorized());
+    }
+
     private String expired(String token) {
         var claims = org.springframework.security.oauth2.jwt.JwtClaimsSet.builder()
                 .claims(values -> values.putAll(decoder.decode(token).getClaims()))

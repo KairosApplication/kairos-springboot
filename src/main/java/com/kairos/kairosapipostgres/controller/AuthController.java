@@ -59,6 +59,12 @@ public class AuthController {
         ));
     }
 
+    // O filtro valida a autenticação e o CSRF antes de expor o contexto ao chatbot.
+    @PostMapping("/chat-context")
+    public ResponseEntity<AuthResponse> chatContext(Authentication authentication) {
+        return me(authentication);
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
             HttpServletRequest request,
