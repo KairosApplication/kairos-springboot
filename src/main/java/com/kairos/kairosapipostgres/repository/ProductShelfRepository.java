@@ -12,4 +12,6 @@ public interface ProductShelfRepository extends JpaRepository<ProductShelf, Long
     Optional<ProductShelf> findByProductIdAndShelfId(Long productId, Long shelfId);
     List<ProductShelf> findByProductId(Long productId);
     List<ProductShelf> findByShelfId(Long shelfId);
+
+    List<ProductShelf> findByShelfAisleSectorCompanyIdAndProductCompanyId(Long shelfCompanyId, Long productCompanyId);
 }

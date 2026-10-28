@@ -96,6 +96,7 @@ Consulte o [Swagger UI](swagger.md) para contratos, parâmetros e respostas.
 | `GET` | `/api/v1/shelves/list` | [ShelfController.java](../src/main/java/com/kairos/kairosapipostgres/controller/ShelfController.java) |
 | `POST` | `/api/v1/shelves/registration` | [ShelfController.java](../src/main/java/com/kairos/kairosapipostgres/controller/ShelfController.java) |
 | `PATCH` | `/api/v1/shelves/update/{id}` | [ShelfController.java](../src/main/java/com/kairos/kairosapipostgres/controller/ShelfController.java) |
+| `GET` | `/api/v1/store-map` | [StoreMapController.java](../src/main/java/com/kairos/kairosapipostgres/controller/StoreMapController.java) |
 | `DELETE` | `/api/v1/users/delete/{id}` | [UserController.java](../src/main/java/com/kairos/kairosapipostgres/controller/UserController.java) |
 | `GET` | `/api/v1/users/find/{id}` | [UserController.java](../src/main/java/com/kairos/kairosapipostgres/controller/UserController.java) |
 | `GET` | `/api/v1/users/list` | [UserController.java](../src/main/java/com/kairos/kairosapipostgres/controller/UserController.java) |
