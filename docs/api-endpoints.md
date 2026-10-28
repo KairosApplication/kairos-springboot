@@ -5,6 +5,9 @@ Consulte o [Swagger UI](swagger.md) para contratos, parâmetros e respostas.
 
 | Método | Rota | Controller |
 | --- | --- | --- |
+| `POST` | `/api/v1/products/company/registration` | [ProductController.java](../src/main/java/com/kairos/kairosapipostgres/controller/ProductController.java) |
+| `PATCH` | `/api/v1/products/company/update/{id}` | [ProductController.java](../src/main/java/com/kairos/kairosapipostgres/controller/ProductController.java) |
+| `DELETE` | `/api/v1/products/company/delete/{id}` | [ProductController.java](../src/main/java/com/kairos/kairosapipostgres/controller/ProductController.java) |
 | `DELETE` | `/api/v1/aisles/delete/{id}` | [AisleController.java](../src/main/java/com/kairos/kairosapipostgres/controller/AisleController.java) |
 | `GET` | `/api/v1/aisles/find/sector` | [AisleController.java](../src/main/java/com/kairos/kairosapipostgres/controller/AisleController.java) |
 | `GET` | `/api/v1/aisles/find/{id}` | [AisleController.java](../src/main/java/com/kairos/kairosapipostgres/controller/AisleController.java) |
