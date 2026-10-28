@@ -2,6 +2,7 @@ package com.kairos.kairosapipostgres.repository;
 
 import com.kairos.kairosapipostgres.model.Product;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -12,6 +13,10 @@ import java.util.Optional;
 
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long> {
+    @Override
+    @EntityGraph(attributePaths = {"category"})
+    List<Product> findAll();
+
 
     interface RecommendedProduct {
         Long getProductId();
@@ -56,4 +61,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query(value = "SELECT * FROM products p WHERE CAST(p.price AS NUMERIC) <= :price", nativeQuery = true)
     List<Product> findByPriceLessThanEqual(@Param("price") BigDecimal price);
 
+
+    @EntityGraph(attributePaths = {"category"})
+    List<Product> findByCompanyId(Long companyId);
 }
