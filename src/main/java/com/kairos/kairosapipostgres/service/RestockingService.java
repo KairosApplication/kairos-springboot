@@ -24,11 +24,14 @@ public class RestockingService {
     private final RestockingAccess access;
     private final RestockingHistoryOutbox history;
     private final Clock clock;
+    private final ProductInventoryRepository productInventories;
+    private final ProductShelfRepository productShelves;
 
     public RestockingService(RestockingRepository repository, InventoryRepository inventoryRepository,
                              EmployeeRepository employeeRepository, ShelfRepository shelfRepository,
                              ProductRepository productRepository, RestockingAccess access,
-                             RestockingHistoryOutbox history, Clock clock) {
+                             RestockingHistoryOutbox history, Clock clock,
+                             ProductInventoryRepository productInventories, ProductShelfRepository productShelves) {
         this.repository = repository;
         this.inventoryRepository = inventoryRepository;
         this.employeeRepository = employeeRepository;
@@ -37,6 +40,8 @@ public class RestockingService {
         this.access = access;
         this.history = history;
         this.clock = clock;
+        this.productInventories = productInventories;
+        this.productShelves = productShelves;
     }
 
     @Transactional
@@ -50,6 +55,7 @@ public class RestockingService {
         value.setRestockingDate(clock.instant().atZone(RestockingWeek.ZONE).toLocalDateTime());
         access.require(value);
         validateQuantities(value);
+        moveStock(value);
         value = repository.save(value);
         history.enqueue(value, true);
         return RestockingMapper.toResponse(value);
@@ -122,6 +128,30 @@ public class RestockingService {
     private Inventory inventory(Long id) {
         return inventoryRepository.findById(id)
                 .orElseThrow(() -> new InventoryNotFoundException("Inventory not found"));
+    }
+
+    private void moveStock(Restocking value) {
+        // Serialize the destination even when its product assignment does not exist yet.
+        shelfRepository.locked(value.getShelf().getId())
+                .orElseThrow(() -> new ShelfNotFoundException("Shelf not found"));
+        var source = productInventories.locked(value.getInventory().getId(), value.getProduct().getId())
+                .orElseThrow(() -> new InvalidRestockingException("Product is not available in this inventory"));
+        int quantity = value.getRestockedQuantity();
+        if (source.getProductQuantity() < quantity) {
+            throw new InvalidRestockingException("Insufficient inventory quantity");
+        }
+        int usable = quantity - value.getDamagedQuantity();
+        if (usable > 0) {
+            var destination = productShelves.locked(value.getProduct().getId(), value.getShelf().getId())
+                    .orElseGet(() -> new ProductShelf(null, value.getProduct(), value.getShelf(), 0));
+            long newQuantity = (long) destination.getProductQuantity() + usable;
+            if (newQuantity > Integer.MAX_VALUE) {
+                throw new InvalidRestockingException("Shelf quantity exceeds the supported maximum");
+            }
+            destination.setProductQuantity((int) newQuantity);
+            productShelves.save(destination);
+        }
+        source.setProductQuantity(source.getProductQuantity() - quantity);
     }
 
     private void validateQuantities(Restocking value) {

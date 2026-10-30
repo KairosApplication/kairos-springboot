@@ -44,6 +44,8 @@ class RestockingHistoryIntegrationTest {
     @Autowired private CategoryRepository categories;
     @Autowired private ProductRepository products;
     @Autowired private RestockingRepository restockings;
+    @Autowired private ProductInventoryRepository productInventories;
+    @Autowired private ProductShelfRepository productShelves;
     @Autowired private RestockingHistoryDeliveryRepository deliveries;
     @Autowired private RestockingHistoryBypassRepository bypasses;
     @Autowired private RestockingService service;
@@ -76,6 +78,7 @@ class RestockingHistoryIntegrationTest {
             inventory = inventories.save(new Inventory(null, sector, company));
             product = products.save(new Product(null, "Brand", BigDecimal.TEN, "History " + UUID.randomUUID(),
                     categories.save(new Category(null, "Category")), company));
+            productInventories.save(new ProductInventory(null, product, inventory, 100));
         });
         as(stocker);
     }
@@ -87,6 +90,8 @@ class RestockingHistoryIntegrationTest {
             deliveries.deleteAll();
             bypasses.deleteAll();
             restockings.deleteAll();
+            productShelves.deleteAll();
+            productInventories.deleteAll();
             products.deleteAll();
             categories.deleteAll();
             shelves.deleteAll();
@@ -139,6 +144,81 @@ class RestockingHistoryIntegrationTest {
         verifyNoInteractions(client);
         assertThat(deliveries.count()).isEqualTo(before);
         assertThat(restockings.count()).isZero();
+        assertThat(productInventories.findAll().getFirst().getProductQuantity()).isEqualTo(100);
+        assertThat(productShelves.count()).isZero();
+    }
+
+    @Test
+    void movesOnlyUsableUnitsToShelfAndAccumulatesFurtherRestockings() {
+        service.save(new RestockingRequest(inventory.getId(), stocker.getId(), shelf.getId(), product.getId(), 10, 1));
+        assertThat(productInventories.findAll().getFirst().getProductQuantity()).isEqualTo(90);
+        assertThat(productShelves.findAll().getFirst().getProductQuantity()).isEqualTo(9);
+        service.save(request());
+        assertThat(productInventories.findAll().getFirst().getProductQuantity()).isEqualTo(80);
+        assertThat(productShelves.findAll().getFirst().getProductQuantity()).isEqualTo(19);
+    }
+
+    @Test
+    void rejectsMissingOrInsufficientStockWithoutRecordingHistory() {
+        assertThatThrownBy(() -> service.save(new RestockingRequest(inventory.getId(), stocker.getId(),
+                shelf.getId(), product.getId(), 101, 0)))
+                .isInstanceOf(com.kairos.kairosapipostgres.exception.InvalidRestockingException.class);
+        assertThat(productInventories.findAll().getFirst().getProductQuantity()).isEqualTo(100);
+        productInventories.deleteAll();
+        assertThatThrownBy(() -> service.save(request()))
+                .isInstanceOf(com.kairos.kairosapipostgres.exception.InvalidRestockingException.class);
+        assertThat(productShelves.count()).isZero();
+        assertThat(restockings.count()).isZero();
+        assertThat(deliveries.count()).isZero();
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void allDamagedUnitsExhaustInventoryWithoutCreatingAnEmptyShelfAssignment() {
+        service.save(new RestockingRequest(inventory.getId(), stocker.getId(), shelf.getId(), product.getId(), 100, 100));
+        assertThat(productInventories.findAll().getFirst().getProductQuantity()).isZero();
+        assertThat(productShelves.count()).isZero();
+        assertThat(restockings.count()).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentRestockingsCannotSpendTheSameInventoryTwice() throws Exception {
+        var start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.Callable<Boolean> attempt = () -> {
+            as(stocker);
+            try {
+                assertThat(start.await(30, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                service.save(new RestockingRequest(inventory.getId(), stocker.getId(), shelf.getId(), product.getId(), 60, 0));
+                return true;
+            } catch (com.kairos.kairosapipostgres.exception.InvalidRestockingException exception) {
+                return false;
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
+        };
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(attempt);
+            var second = executor.submit(attempt);
+            start.countDown();
+            assertThat(List.of(first.get(30, java.util.concurrent.TimeUnit.SECONDS),
+                    second.get(30, java.util.concurrent.TimeUnit.SECONDS))).containsExactlyInAnyOrder(true, false);
+        }
+        assertThat(productInventories.findAll().getFirst().getProductQuantity()).isEqualTo(40);
+        assertThat(productShelves.findAll().getFirst().getProductQuantity()).isEqualTo(60);
+        assertThat(restockings.count()).isEqualTo(1);
+        assertThat(deliveries.count()).isEqualTo(1);
+    }
+
+    @Test
+    void shelfQuantityOverflowLeavesTheInventoryAndHistoryUntouched() {
+        productShelves.save(new ProductShelf(null, product, shelf, Integer.MAX_VALUE));
+        assertThatThrownBy(() -> service.save(request()))
+                .isInstanceOf(com.kairos.kairosapipostgres.exception.InvalidRestockingException.class);
+        assertThat(productInventories.findAll().getFirst().getProductQuantity()).isEqualTo(100);
+        assertThat(productShelves.findAll().getFirst().getProductQuantity()).isEqualTo(Integer.MAX_VALUE);
+        assertThat(restockings.count()).isZero();
+        assertThat(deliveries.count()).isZero();
+        verifyNoInteractions(client);
     }
 
     @Test

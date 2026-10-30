@@ -16,6 +16,15 @@ reescrita do serviço. A autenticação JWT/refresh existente é preservada.
    a quantidade reposta.
 3. Na mesma transação PostgreSQL, grava a reposição e um evento de entrega. O ID
    vem do registro persistido pelo JPA; não há `MAX(id)` nem publicação antes do commit.
+   O cadastro também desconta `restockedQuantity` de `product_inventories` e soma
+   `restockedQuantity - damagedQuantity` em `product_shelves`, criando o vínculo
+   de prateleira quando necessário. Avarias saem do estoque e não entram na
+   prateleira. Sem saldo suficiente ou sem vínculo no estoque, retorna 400 sem
+   gravar reposição, movimentação ou evento. Os saldos são bloqueados durante
+   a transação para serializar reposições concorrentes. Essa operação é feita
+   pelo serviço Java, sem depender de uma procedure externa.
+   PATCH e DELETE continuam alterando apenas o registro histórico, sem estornar
+   ou refazer a movimentação física efetuada no cadastro.
 4. Depois do commit, envia `POST /v1/restockings/events` ao serviço interno com
    `X-Internal-API-Key`. O payload usa exatamente os nomes snake_case, IDs e
    timestamp com fuso exigidos pelo kairos-data.
