@@ -2,6 +2,14 @@ package com.kairos.kairosapipostgres.controller;
 
 import com.kairos.kairosapipostgres.model.Category;
 import com.kairos.kairosapipostgres.model.Product;
+import com.kairos.kairosapipostgres.model.Company;
+import com.kairos.kairosapipostgres.model.Employee;
+import com.kairos.kairosapipostgres.model.User;
+import com.kairos.kairosapipostgres.model.enums.Position;
+import com.kairos.kairosapipostgres.TestCompanyFactory;
+import com.kairos.kairosapipostgres.repository.CompanyRepository;
+import com.kairos.kairosapipostgres.repository.EmployeeRepository;
+import com.kairos.kairosapipostgres.repository.UserRepository;
 import com.kairos.kairosapipostgres.repository.CategoryRepository;
 import com.kairos.kairosapipostgres.repository.ProductRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -12,8 +20,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -23,6 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Transactional
 class ProductControllerIntegrationTest {
 
     private static final String BASE = "/api/v1/products";
@@ -30,14 +41,22 @@ class ProductControllerIntegrationTest {
     @Autowired private MockMvc mvc;
     @Autowired private ProductRepository products;
     @Autowired private CategoryRepository categories;
+    @Autowired private CompanyRepository companies;
+    @Autowired private UserRepository users;
+    @Autowired private EmployeeRepository employees;
 
     private Category category;
+    private Company company;
 
     @BeforeEach
     void setUp() {
         products.deleteAll();
         categories.deleteAll();
         category = categories.save(new Category(null, "Alimentos"));
+        company = TestCompanyFactory.create(companies);
+        User manager = users.save(new User(null, "Test", "Manager", LocalDate.of(1990, 1, 1),
+                "12345678901", "manager", "{noop}test-only"));
+        employees.saveAndFlush(new Employee(null, Position.MANAGER, manager, company));
     }
 
     @AfterEach
@@ -121,7 +140,8 @@ class ProductControllerIntegrationTest {
                 "Marca",
                 new BigDecimal(price),
                 name,
-                category
+                category,
+                company
         ));
     }
 }

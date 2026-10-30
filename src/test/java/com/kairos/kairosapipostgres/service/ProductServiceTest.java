@@ -7,7 +7,10 @@ import com.kairos.kairosapipostgres.exception.CategoryNotFoundException;
 import com.kairos.kairosapipostgres.exception.ProductAlreadyExistsException;
 import com.kairos.kairosapipostgres.exception.ProductNotFoundException;
 import com.kairos.kairosapipostgres.model.Category;
+import com.kairos.kairosapipostgres.model.Company;
+import com.kairos.kairosapipostgres.model.Employee;
 import com.kairos.kairosapipostgres.model.Product;
+import com.kairos.kairosapipostgres.model.enums.Position;
 import com.kairos.kairosapipostgres.repository.CategoryRepository;
 import com.kairos.kairosapipostgres.repository.ProductRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,20 +39,27 @@ class ProductServiceTest {
     @Mock
     private CategoryRepository categoryRepository;
 
+    @Mock
+    private RestockingAccess access;
+
+    private final Company company = new Company(1L, "Test company", "00000000000001", "company@example.com", "BASIC");
+
     private ProductService service;
 
     @BeforeEach
     void setUp() {
-        service = new ProductService(productRepository, categoryRepository);
+        service = new ProductService(productRepository, categoryRepository, access);
     }
 
     @Test
     void shouldCreateProductForExistingCategory() {
+        authorizeRegistration();
         Category category = category(10L, "Alimentos");
         when(categoryRepository.findById(10L)).thenReturn(Optional.of(category));
         when(productRepository.existsByName("Arroz")).thenReturn(false);
         when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
             Product saved = invocation.getArgument(0);
+            assertThat(saved.getCompany()).isSameAs(company);
             saved.setId(1L);
             return saved;
         });
@@ -66,6 +76,7 @@ class ProductServiceTest {
 
     @Test
     void shouldRejectProductForMissingCategory() {
+        authorizeRegistration();
         when(categoryRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.save(new ProductRequest(
@@ -78,6 +89,7 @@ class ProductServiceTest {
 
     @Test
     void shouldRejectDuplicateProductName() {
+        authorizeRegistration();
         when(categoryRepository.findById(10L))
                 .thenReturn(Optional.of(category(10L, "Alimentos")));
         when(productRepository.existsByName("Arroz")).thenReturn(true);
@@ -107,6 +119,7 @@ class ProductServiceTest {
         assertThat(response.brand()).isEqualTo("Nova Marca");
         assertThat(response.price()).isEqualByComparingTo("25.50");
         assertThat(response.category().id()).isEqualTo(20L);
+        verify(access).requireCompany(company);
     }
 
     @Test
@@ -174,6 +187,7 @@ class ProductServiceTest {
         assertThat(service.deleteById(1L)).isTrue();
 
         verify(productRepository).deleteById(1L);
+        verify(access).requireCompany(company);
     }
 
     @Test
@@ -235,6 +249,10 @@ class ProductServiceTest {
             String name,
             Category category
     ) {
-        return new Product(id, brand, new BigDecimal(price), name, category);
+        return new Product(id, brand, new BigDecimal(price), name, category, company);
+    }
+
+    private void authorizeRegistration() {
+        when(access.actor()).thenReturn(new Employee(1L, Position.MANAGER, null, company));
     }
 }

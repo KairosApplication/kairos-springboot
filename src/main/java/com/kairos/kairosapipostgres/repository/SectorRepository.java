@@ -14,4 +14,6 @@ public interface SectorRepository extends JpaRepository<Sector, Long> {
     boolean existsByName (String name);
 
     List<Sector> findByType(String type);
+
+    List<Sector> findByCompanyId(Long companyId);
 }
