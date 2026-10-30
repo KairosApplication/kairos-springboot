@@ -24,7 +24,7 @@ public class ProductController {
         this.productService = productService;
     }
 
-    @PostMapping("/registration")
+    @PostMapping({"/registration", "/company/registration"})
     public ResponseEntity<ProductResponse> register(
             @Valid @RequestBody ProductRequest request
     ) {
@@ -69,7 +69,7 @@ public class ProductController {
         return ResponseEntity.ok(productService.findByName(name));
     }
 
-    @PatchMapping("update/{id}")
+    @PatchMapping({"update/{id}", "company/update/{id}"})
     public ResponseEntity<Optional<ProductResponse>> update(
             @PathVariable Long id,
             @Valid @RequestBody ProductUpdateRequest request
@@ -79,7 +79,7 @@ public class ProductController {
         );
     }
 
-    @DeleteMapping("delete/{id}")
+    @DeleteMapping({"delete/{id}", "company/delete/{id}"})
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         productService.deleteById (id);
 

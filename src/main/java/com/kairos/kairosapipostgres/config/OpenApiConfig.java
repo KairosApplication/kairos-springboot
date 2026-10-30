@@ -93,6 +93,10 @@ public class OpenApiConfig {
             document(api, "/api/v1/purchases/{id}/total", PathItem.HttpMethod.GET, "Compras",
                     "Calcular total", "Retorna o valor total da compra. Exige role MANAGER.",
                     200, true, false);
+            document(api, "/api/v1/store-map", PathItem.HttpMethod.GET, "Mapa da loja",
+                    "Consultar mapa da empresa", "Retorna setores, corredores, gôndolas, produtos e vínculos "
+                            + "da empresa autenticada. Exige MANAGER vinculado a funcionário com empresa.",
+                    200, true, false);
             document(api, "/api/v1/restockings/week", PathItem.HttpMethod.GET, "Reposições",
                     "Histórico semanal de reposições", "Semana atual, de segunda a segunda em America/Sao_Paulo. "
                             + "Repositor consulta apenas o próprio histórico; gerente pode informar employeeId da mesma empresa. "

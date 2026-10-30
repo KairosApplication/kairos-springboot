@@ -2,6 +2,7 @@ package com.kairos.kairosapipostgres.repository;
 
 import com.kairos.kairosapipostgres.model.Shelf;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -15,6 +16,12 @@ public interface ShelfRepository extends JpaRepository<Shelf, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Shelf s where s.id = :id")
     Optional<Shelf> locked(Long id);
+    @Override
+    @EntityGraph(attributePaths = {"aisle"})
+    List<Shelf> findAll();
 
     List<Shelf> findByAisleId(Long aisleId);
+
+    @EntityGraph(attributePaths = {"aisle"})
+    List<Shelf> findByAisleSectorCompanyId(Long companyId);
 }
