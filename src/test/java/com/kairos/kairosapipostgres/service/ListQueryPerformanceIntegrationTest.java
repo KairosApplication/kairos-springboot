@@ -42,6 +42,7 @@ class ListQueryPerformanceIntegrationTest {
     @Autowired private EmployeeService employeeService;
     @Autowired private CustomerService customerService;
     @Autowired private RestockingService restockingService;
+    @Autowired private InventoryService inventoryService;
 
     private User user(int index) {
         return users.save(new User(null, "Pessoa " + index, "Teste", LocalDate.of(2000, 1, 1),
@@ -73,6 +74,19 @@ class ListQueryPerformanceIntegrationTest {
                     .allSatisfy(customer -> assertThat(customer.userName()).startsWith("Pessoa "));
             assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
         }
+    }
+
+    @Test
+    void inventoryOptionsLoadSectorNamesInOneQuery() {
+        Company company = TestCompanyFactory.create(companies);
+        for (int i = 0; i < 30; i++) {
+            Sector sector = sectors.save(new Sector(null, "Setor " + i, "Teste", company));
+            inventories.save(new Inventory(null, sector, company));
+        }
+        Statistics statistics = resetStatistics();
+        assertThat(inventoryService.findAll()).hasSize(30)
+                .allSatisfy(inventory -> assertThat(inventory.sectorName()).startsWith("Setor "));
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
     }
 
     @Test
