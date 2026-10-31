@@ -3,6 +3,7 @@ package com.kairos.kairosapipostgres.controller;
 import com.kairos.kairosapipostgres.dto.request.RestockingRequest;
 import com.kairos.kairosapipostgres.dto.request.RestockingUpdateRequest;
 import com.kairos.kairosapipostgres.dto.response.RestockingResponse;
+import com.kairos.kairosapipostgres.dto.response.RestockingOptionsResponse;
 import com.kairos.kairosapipostgres.service.RestockingService;
 import com.kairos.kairosapipostgres.service.RestockingWeeklyHistory;
 import com.kairos.kairosapipostgres.dto.response.RestockingWeekResponse;
@@ -23,6 +24,11 @@ public class RestockingController {
     public RestockingController(RestockingService service, RestockingWeeklyHistory history) {
         this.service = service;
         this.history = history;
+    }
+
+    @GetMapping("/options")
+    public ResponseEntity<RestockingOptionsResponse> options() {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(service.options());
     }
 
     @GetMapping("/week")

@@ -3,6 +3,10 @@ package com.kairos.kairosapipostgres.service;
 import com.kairos.kairosapipostgres.dto.request.RestockingRequest;
 import com.kairos.kairosapipostgres.dto.request.RestockingUpdateRequest;
 import com.kairos.kairosapipostgres.dto.response.RestockingResponse;
+import com.kairos.kairosapipostgres.dto.response.RestockingOptionsResponse;
+import com.kairos.kairosapipostgres.mapper.EmployeeMapper;
+import com.kairos.kairosapipostgres.mapper.InventoryMapper;
+import com.kairos.kairosapipostgres.model.enums.Position;
 import com.kairos.kairosapipostgres.exception.*;
 import com.kairos.kairosapipostgres.mapper.RestockingMapper;
 import com.kairos.kairosapipostgres.model.*;
@@ -39,6 +43,18 @@ public class RestockingService {
         this.clock = clock;
     }
 
+    @Transactional(readOnly = true)
+    public RestockingOptionsResponse options() {
+        Employee actor = access.actor();
+        Long companyId = actor.getCompany().getId();
+        List<Employee> people = actor.getPosition() == Position.MANAGER
+                ? employeeRepository.findByCompanyIdAndPositionIn(companyId, List.of(Position.MANAGER, Position.STOCKER))
+                : List.of(actor);
+        return new RestockingOptionsResponse(people.stream().map(EmployeeMapper::toResponse).toList(),
+                inventoryRepository.findByCompanyIdAndSectorCompanyId(companyId, companyId).stream()
+                        .map(InventoryMapper::toResponse).toList());
+    }
+
     @Transactional
     public RestockingResponse save(RestockingRequest request) {
         access.target(request.employeeId());
@@ -57,8 +73,9 @@ public class RestockingService {
 
     @Transactional(readOnly = true)
     public List<RestockingResponse> findAll() {
-        return repository.findByEmployeeCompanyId(access.actor().getCompany().getId()).stream()
-                .filter(access::visible).map(RestockingMapper::toResponse).toList();
+        Employee actor = access.actor();
+        return repository.findByEmployeeCompanyId(actor.getCompany().getId()).stream()
+                .filter(value -> access.visible(value, actor)).map(RestockingMapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -71,13 +88,15 @@ public class RestockingService {
     @Transactional(readOnly = true)
     public List<RestockingResponse> findByShelfId(Long shelfId) {
         access.requireCompany(shelf(shelfId).getAisle().getSector().getCompany());
-        return repository.findByShelfId(shelfId).stream().filter(access::visible).map(RestockingMapper::toResponse).toList();
+        Employee actor = access.actor();
+        return repository.findByShelfId(shelfId).stream().filter(value -> access.visible(value, actor)).map(RestockingMapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public List<RestockingResponse> findByInventoryId(Long inventoryId) {
         access.requireCompany(inventory(inventoryId).getCompany());
-        return repository.findByInventoryId(inventoryId).stream().filter(access::visible).map(RestockingMapper::toResponse).toList();
+        Employee actor = access.actor();
+        return repository.findByInventoryId(inventoryId).stream().filter(value -> access.visible(value, actor)).map(RestockingMapper::toResponse).toList();
     }
 
     @Transactional
