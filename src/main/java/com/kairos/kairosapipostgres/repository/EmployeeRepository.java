@@ -16,6 +16,8 @@ public interface EmployeeRepository extends
     @Override
     @EntityGraph(attributePaths = {"user"})
     List<Employee> findAll();
+    @EntityGraph(attributePaths = {"user"})
+    List<Employee> findByCompanyIdAndPositionIn(Long companyId, List<Position> positions);
     boolean existsByPosition(Position position);
     @EntityGraph(attributePaths = {"user", "company"})
     Optional<Employee> findByUserEmail(String email);

@@ -3,6 +3,10 @@ package com.kairos.kairosapipostgres.service;
 import com.kairos.kairosapipostgres.dto.request.RestockingRequest;
 import com.kairos.kairosapipostgres.dto.request.RestockingUpdateRequest;
 import com.kairos.kairosapipostgres.dto.response.RestockingResponse;
+import com.kairos.kairosapipostgres.dto.response.RestockingOptionsResponse;
+import com.kairos.kairosapipostgres.mapper.EmployeeMapper;
+import com.kairos.kairosapipostgres.mapper.InventoryMapper;
+import com.kairos.kairosapipostgres.model.enums.Position;
 import com.kairos.kairosapipostgres.exception.*;
 import com.kairos.kairosapipostgres.mapper.RestockingMapper;
 import com.kairos.kairosapipostgres.model.*;
@@ -37,6 +41,18 @@ public class RestockingService {
         this.access = access;
         this.history = history;
         this.clock = clock;
+    }
+
+    @Transactional(readOnly = true)
+    public RestockingOptionsResponse options() {
+        Employee actor = access.actor();
+        Long companyId = actor.getCompany().getId();
+        List<Employee> people = actor.getPosition() == Position.MANAGER
+                ? employeeRepository.findByCompanyIdAndPositionIn(companyId, List.of(Position.MANAGER, Position.STOCKER))
+                : List.of(actor);
+        return new RestockingOptionsResponse(people.stream().map(EmployeeMapper::toResponse).toList(),
+                inventoryRepository.findByCompanyIdAndSectorCompanyId(companyId, companyId).stream()
+                        .map(InventoryMapper::toResponse).toList());
     }
 
     @Transactional

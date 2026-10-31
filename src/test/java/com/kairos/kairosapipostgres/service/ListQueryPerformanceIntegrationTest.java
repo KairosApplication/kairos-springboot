@@ -1,6 +1,8 @@
 package com.kairos.kairosapipostgres.service;
 
 import com.kairos.kairosapipostgres.TestCompanyFactory;
+import com.kairos.kairosapipostgres.dto.response.EmployeeResponse;
+import com.kairos.kairosapipostgres.dto.response.InventoryResponse;
 import com.kairos.kairosapipostgres.model.*;
 import com.kairos.kairosapipostgres.model.enums.Position;
 import com.kairos.kairosapipostgres.repository.*;
@@ -96,6 +98,8 @@ class ListQueryPerformanceIntegrationTest {
         Company other = TestCompanyFactory.create(companies);
         Employee manager = employees.save(new Employee(null, Position.MANAGER, user(1), company));
         Employee stocker = employees.save(new Employee(null, Position.STOCKER, user(2), company));
+        employees.save(new Employee(null, Position.STOCKER, user(3), other));
+        employees.save(new Employee(null, Position.CASHIER, user(4), company));
         Sector sector = sectors.save(new Sector(null, "Setor", "Teste", company));
         Sector otherSector = sectors.save(new Sector(null, "Outro", "Teste", other));
         Aisle aisle = aisles.save(new Aisle(null, sector, 1));
@@ -115,6 +119,11 @@ class ListQueryPerformanceIntegrationTest {
         Statistics statistics = resetStatistics();
         assertThat(restockingService.findAll()).hasSize(20);
         assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+        var managerOptions = restockingService.options();
+        assertThat(managerOptions.people()).extracting(EmployeeResponse::id)
+                .containsExactlyInAnyOrder(managerId, stockerId);
+        assertThat(managerOptions.inventories()).extracting(InventoryResponse::id)
+                .containsExactly(inventory.getId());
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
                 "performance2@example.com", "unused", AuthorityUtils.createAuthorityList("ROLE_EMPLOYEE")));
         statistics = resetStatistics();
@@ -124,5 +133,9 @@ class ListQueryPerformanceIntegrationTest {
                     assertThat(record.employeeId()).isNotEqualTo(managerId);
                 });
         assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+        var stockerOptions = restockingService.options();
+        assertThat(stockerOptions.people()).extracting(EmployeeResponse::id).containsExactly(stockerId);
+        assertThat(stockerOptions.inventories()).extracting(InventoryResponse::id)
+                .containsExactly(inventory.getId());
     }
 }

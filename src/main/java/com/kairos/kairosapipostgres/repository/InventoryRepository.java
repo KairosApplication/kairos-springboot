@@ -14,5 +14,8 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     List<Inventory> findAll();
 
     @EntityGraph(attributePaths = {"sector"})
+    List<Inventory> findByCompanyIdAndSectorCompanyId(Long companyId, Long sectorCompanyId);
+
+    @EntityGraph(attributePaths = {"sector"})
     List<Inventory> findBySectorId(Long sectorId);
 }
