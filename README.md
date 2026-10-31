@@ -468,11 +468,13 @@ repositório no GitHub e não são representados integralmente por estes arquivo
 <!-- docs-bot:start -->
 ## Documentação
 
-Java **21**, Spring Boot **4.0.7**, **93** rotas mapeadas.
+Java **21**, Spring Boot **4.0.7**, **96** rotas mapeadas.
 
 - [Referência de rotas](docs/api-endpoints.md)
-- [Autenticação por sessão](docs/authentication.md)
+- [Autenticação JWT, Redis e renovação automática](docs/authentication.md)
 - [Dependabot](docs/dependabot.md)
-- [Segurança, Redis e migrações](docs/security-redis.md)
-- [Swagger / OpenAPI](docs/swagger.md)
+- [Ambiente local de desenvolvimento e testes](docs/development-environment.md)
+- [Histórico semanal com a API Redis do kairos-data](docs/restocking-redis-api.md)
+- [Segurança, Redis e PostgreSQL](docs/security-redis.md)
+- [Swagger e autenticação](docs/swagger.md)
 <!-- docs-bot:end -->

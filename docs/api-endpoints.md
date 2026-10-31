@@ -20,10 +20,12 @@ Consulte o [Swagger UI](swagger.md) para contratos, parâmetros e respostas.
 | `GET` | `/api/v1/alerts/list` | [AlertController.java](../src/main/java/com/kairos/kairosapipostgres/controller/AlertController.java) |
 | `POST` | `/api/v1/alerts/registration` | [AlertController.java](../src/main/java/com/kairos/kairosapipostgres/controller/AlertController.java) |
 | `PATCH` | `/api/v1/alerts/update/{id}` | [AlertController.java](../src/main/java/com/kairos/kairosapipostgres/controller/AlertController.java) |
+| `POST` | `/api/v1/auth/chat-context` | [AuthController.java](../src/main/java/com/kairos/kairosapipostgres/controller/AuthController.java) |
 | `GET` | `/api/v1/auth/login` | [AuthController.java](../src/main/java/com/kairos/kairosapipostgres/controller/AuthController.java) |
-| `POST` | `/api/v1/auth/login` | [SecurityConfig.java](../src/main/java/com/kairos/kairosapipostgres/config/SecurityConfig.java) |
+| `POST` | `/api/v1/auth/login` | [AuthController.java](../src/main/java/com/kairos/kairosapipostgres/controller/AuthController.java) |
 | `POST` | `/api/v1/auth/logout` | [AuthController.java](../src/main/java/com/kairos/kairosapipostgres/controller/AuthController.java) |
 | `GET` | `/api/v1/auth/me` | [AuthController.java](../src/main/java/com/kairos/kairosapipostgres/controller/AuthController.java) |
+| `POST` | `/api/v1/auth/refresh` | [AuthController.java](../src/main/java/com/kairos/kairosapipostgres/controller/AuthController.java) |
 | `DELETE` | `/api/v1/categories/delete/{id}` | [CategoryController.java](../src/main/java/com/kairos/kairosapipostgres/controller/CategoryController.java) |
 | `GET` | `/api/v1/categories/find/{id}` | [CategoryController.java](../src/main/java/com/kairos/kairosapipostgres/controller/CategoryController.java) |
 | `GET` | `/api/v1/categories/list` | [CategoryController.java](../src/main/java/com/kairos/kairosapipostgres/controller/CategoryController.java) |
@@ -76,6 +78,7 @@ Consulte o [Swagger UI](swagger.md) para contratos, parâmetros e respostas.
 | `GET` | `/api/v1/restockings/list` | [RestockingController.java](../src/main/java/com/kairos/kairosapipostgres/controller/RestockingController.java) |
 | `POST` | `/api/v1/restockings/registration` | [RestockingController.java](../src/main/java/com/kairos/kairosapipostgres/controller/RestockingController.java) |
 | `PATCH` | `/api/v1/restockings/update/{id}` | [RestockingController.java](../src/main/java/com/kairos/kairosapipostgres/controller/RestockingController.java) |
+| `GET` | `/api/v1/restockings/week` | [RestockingController.java](../src/main/java/com/kairos/kairosapipostgres/controller/RestockingController.java) |
 | `DELETE` | `/api/v1/sectors/delete/{id}` | [SectorController.java](../src/main/java/com/kairos/kairosapipostgres/controller/SectorController.java) |
 | `GET` | `/api/v1/sectors/find/name` | [SectorController.java](../src/main/java/com/kairos/kairosapipostgres/controller/SectorController.java) |
 | `GET` | `/api/v1/sectors/find/type` | [SectorController.java](../src/main/java/com/kairos/kairosapipostgres/controller/SectorController.java) |
