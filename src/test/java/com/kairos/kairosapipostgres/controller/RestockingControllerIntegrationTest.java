@@ -37,6 +37,7 @@ class RestockingControllerIntegrationTest {
     @Autowired private CategoryRepository categories;
     @Autowired private ProductRepository products;
     @Autowired private RestockingRepository restockings;
+    @Autowired private ProductInventoryRepository productInventories;
 
     @Test
     void shouldRecordFindUpdateAndRemoveRestocking() throws Exception {
@@ -50,6 +51,7 @@ class RestockingControllerIntegrationTest {
         Employee employee = employees.saveAndFlush(new Employee(null, Position.STOCKER, employeeUser, company));
         Category category = categories.saveAndFlush(new Category(null, "Alimentos"));
         Product product = products.saveAndFlush(new Product(null, "Marca", BigDecimal.TEN, "Arroz", category, company));
+        productInventories.saveAndFlush(new ProductInventory(null, product, inventory, 100));
         String body = """
                 {"inventoryId":%d,"employeeId":%d,"shelfId":%d,"productId":%d,
                  "restockedQuantity":10}

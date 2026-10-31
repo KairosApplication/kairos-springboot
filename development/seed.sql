@@ -53,4 +53,9 @@ INSERT INTO products (company_id, brand, price, name, category_id)
 SELECT company_id, 'Kairos', 10::money, 'Produto desenvolvimento', id FROM categories c
 WHERE category = 'Desenvolvimento' AND NOT EXISTS
 (SELECT 1 FROM products p WHERE p.company_id = c.company_id AND p.name = 'Produto desenvolvimento');
+INSERT INTO product_inventories (inventory_id, product_id, product_quantity)
+SELECT i.id, p.id, 1000 FROM inventories i JOIN products p ON p.company_id = i.company_id
+JOIN companies c ON c.id = i.company_id
+WHERE c.email = 'company@kairos.local' AND p.name = 'Produto desenvolvimento'
+ON CONFLICT (inventory_id, product_id) DO NOTHING;
 COMMIT;
