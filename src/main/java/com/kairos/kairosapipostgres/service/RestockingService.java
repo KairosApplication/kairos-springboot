@@ -57,8 +57,9 @@ public class RestockingService {
 
     @Transactional(readOnly = true)
     public List<RestockingResponse> findAll() {
-        return repository.findByEmployeeCompanyId(access.actor().getCompany().getId()).stream()
-                .filter(access::visible).map(RestockingMapper::toResponse).toList();
+        Employee actor = access.actor();
+        return repository.findByEmployeeCompanyId(actor.getCompany().getId()).stream()
+                .filter(value -> access.visible(value, actor)).map(RestockingMapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -71,13 +72,15 @@ public class RestockingService {
     @Transactional(readOnly = true)
     public List<RestockingResponse> findByShelfId(Long shelfId) {
         access.requireCompany(shelf(shelfId).getAisle().getSector().getCompany());
-        return repository.findByShelfId(shelfId).stream().filter(access::visible).map(RestockingMapper::toResponse).toList();
+        Employee actor = access.actor();
+        return repository.findByShelfId(shelfId).stream().filter(value -> access.visible(value, actor)).map(RestockingMapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public List<RestockingResponse> findByInventoryId(Long inventoryId) {
         access.requireCompany(inventory(inventoryId).getCompany());
-        return repository.findByInventoryId(inventoryId).stream().filter(access::visible).map(RestockingMapper::toResponse).toList();
+        Employee actor = access.actor();
+        return repository.findByInventoryId(inventoryId).stream().filter(value -> access.visible(value, actor)).map(RestockingMapper::toResponse).toList();
     }
 
     @Transactional

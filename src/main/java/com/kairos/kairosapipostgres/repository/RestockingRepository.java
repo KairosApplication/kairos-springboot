@@ -18,6 +18,7 @@ public interface RestockingRepository extends JpaRepository<Restocking, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from Restocking r where r.id = :id")
     Optional<Restocking> locked(Long id);
+    @EntityGraph(attributePaths = {"employee.company", "inventory.company", "product.company", "shelf.aisle.sector.company"})
     List<Restocking> findByEmployeeCompanyId(Long companyId);
 
     String WEEK_SCOPE = " from Restocking r where r.employee.company.id = :company and r.employee.id = :employee"
@@ -31,6 +32,8 @@ public interface RestockingRepository extends JpaRepository<Restocking, Long> {
     @Query("select r" + WEEK_SCOPE + " order by r.restockingDate desc, r.id desc")
     @EntityGraph(attributePaths = {"employee.company", "product"})
     List<Restocking> week(Long company, Long employee, LocalDateTime start, LocalDateTime end, Pageable pageable);
+    @EntityGraph(attributePaths = {"employee.company", "inventory.company", "product.company", "shelf.aisle.sector.company"})
     List<Restocking> findByShelfId(Long shelfId);
+    @EntityGraph(attributePaths = {"employee.company", "inventory.company", "product.company", "shelf.aisle.sector.company"})
     List<Restocking> findByInventoryId(Long inventoryId);
 }

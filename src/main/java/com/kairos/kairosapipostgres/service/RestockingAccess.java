@@ -41,7 +41,10 @@ public class RestockingAccess {
     }
 
     public boolean visible(Restocking value) {
-        Employee actor = actor();
+        return visible(value, actor());
+    }
+
+    public boolean visible(Restocking value, Employee actor) {
         return sameCompany(value.getEmployee().getCompany(), actor)
                 && sameCompany(value.getInventory().getCompany(), actor)
                 && sameCompany(value.getProduct().getCompany(), actor)
