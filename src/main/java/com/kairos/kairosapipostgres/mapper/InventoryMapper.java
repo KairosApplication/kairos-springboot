@@ -9,7 +9,7 @@ public final class InventoryMapper {
     }
 
     public static Inventory toEntity(Sector sector) {
-        return new Inventory(null, sector);
+        return new Inventory(null, sector, sector.getCompany());
     }
 
     public static InventoryResponse toResponse(Inventory inventory) {

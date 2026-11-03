@@ -38,11 +38,13 @@ class InventoryControllerIntegrationTest {
     @Autowired private ProductInventoryRepository productInventories;
     @Autowired private ProductRepository products;
     @Autowired private CategoryRepository categories;
+    @Autowired private com.kairos.kairosapipostgres.repository.CompanyRepository companies;
 
     @Test
     void shouldCreateFindMoveAndDeleteInventory() throws Exception {
-        Sector first = sectors.saveAndFlush(new Sector(null, "Estoque", "Operacional"));
-        Sector second = sectors.saveAndFlush(new Sector(null, "Vendas", "Operacional"));
+        var company = com.kairos.kairosapipostgres.TestCompanyFactory.create(companies);
+        Sector first = sectors.saveAndFlush(new Sector(null, "Estoque", "Operacional", company));
+        Sector second = sectors.saveAndFlush(new Sector(null, "Vendas", "Operacional", company));
         mvc.perform(post(BASE + "/registration").with(user("manager").roles("MANAGER")).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"sectorId\":%d}".formatted(first.getId())))

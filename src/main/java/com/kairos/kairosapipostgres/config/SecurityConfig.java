@@ -25,6 +25,10 @@ import org.springframework.security.web.authentication.AnonymousAuthenticationFi
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
+import com.kairos.kairosapipostgres.security.DailyActivityFilter;
+import com.kairos.kairosapipostgres.service.DailyActivityService;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
@@ -37,7 +41,8 @@ public class SecurityConfig {
                                                    JwtDecoder jwtDecoder,
                                                    @Qualifier("sessionProofDecoder") JwtDecoder proofDecoder,
                                                    RedisRefreshTokenStore sessions, TokenAuthService tokens,
-                                                   AuthCookies cookies, Clock clock)
+                                                   AuthCookies cookies, Clock clock,
+                                                   DailyActivityService dailyActivity, MeterRegistry meters)
             throws Exception {
 
         JwtGrantedAuthoritiesConverter roles = new JwtGrantedAuthoritiesConverter();
@@ -142,6 +147,7 @@ public class SecurityConfig {
 
                 .formLogin(AbstractHttpConfigurer::disable)
                 .addFilterBefore(authentication, AnonymousAuthenticationFilter.class)
+                .addFilterBefore(new DailyActivityFilter(dailyActivity, meters), AuthorizationFilter.class)
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((request, response, exception) ->
                                 response.setStatus(401))
