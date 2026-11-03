@@ -68,8 +68,14 @@ public class InventoryService {
         Inventory inventory = repository.findById(id)
                 .orElseThrow(() -> new InventoryNotFoundException("Inventory not found"));
         if (request.sectorId() != null) {
-            inventory.setSector(sectorRepository.findById(request.sectorId())
-                    .orElseThrow(() -> new SectorNotFoundException("Sector not found")));
+            Sector sector = sectorRepository.findById(request.sectorId())
+                    .orElseThrow(() -> new SectorNotFoundException("Sector not found"));
+            if (inventory.getCompany() == null || sector.getCompany() == null
+                    || !inventory.getCompany().getId().equals(sector.getCompany().getId())) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.FORBIDDEN, "Inventory and sector must belong to the same company");
+            }
+            inventory.setSector(sector);
         }
         return Optional.of(InventoryMapper.toResponse(repository.save(inventory)));
     }

@@ -12,6 +12,39 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FlywaySchemaIntegrationTest {
 
     @Test
+    void dailyActivityMigrationPreservesPreinstalledKairosDataObjectsAndRows() throws Exception {
+        String url = "jdbc:tc:postgresql:17-alpine:///kairos_dau_compat_test";
+        try (var connection = DriverManager.getConnection(url, "test", "test")) {
+            Flyway.configure().dataSource(url, "test", "test").target("3").load().migrate();
+            String legacy = new org.springframework.core.io.ClassPathResource("db/legacy-kairos-data-dau.sql")
+                    .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+            try (var statement = connection.createStatement()) {
+                statement.execute(legacy);
+                statement.execute("""
+                        INSERT INTO companies(id,name,cnpj,email,plan) VALUES(1,'DEMO','00000000000001','demo@invalid','BASIC');
+                        INSERT INTO users(id,name,last_name,birth_date,cpf,email,password)
+                        VALUES(1,'DEMO','FICTICIO','2000-01-01','00000000001','user@invalid','not-a-login');
+                        INSERT INTO customers(users_id,company_id) VALUES(1,1);
+                        SELECT register_user_access(1,1);
+                        """);
+            }
+            java.time.OffsetDateTime first;
+            try (var statement = connection.createStatement();
+                 var row = statement.executeQuery("SELECT first_seen_at FROM user_accesses")) {
+                row.next();
+                first = row.getObject(1, java.time.OffsetDateTime.class);
+            }
+            assertThat(Flyway.configure().dataSource(url, "test", "test").load().migrate().migrationsExecuted).isEqualTo(1);
+            try (var statement = connection.createStatement();
+                 var row = statement.executeQuery("SELECT first_seen_at FROM user_accesses")) {
+                assertThat(row.next()).isTrue();
+                assertThat(row.getObject(1, java.time.OffsetDateTime.class)).isEqualTo(first);
+                assertThat(row.next()).isFalse();
+            }
+        }
+    }
+
+    @Test
     void migrationsCreateTheCurrentPostgresSchemaFromAnEmptyDatabase() throws Exception {
         String url = "jdbc:tc:postgresql:17-alpine:///kairos_flyway_test";
         try (var connection = DriverManager.getConnection(url, "test", "test")) {
@@ -20,15 +53,16 @@ class FlywaySchemaIntegrationTest {
                     .locations("classpath:db/migration")
                     .load();
 
-            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(3);
+            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(4);
 
             try (var statement = connection.createStatement();
                  var tables = statement.executeQuery("""
                          SELECT count(*) FROM information_schema.tables
-                         WHERE table_schema = 'public' AND table_name <> 'flyway_schema_history'
+                         WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                           AND table_name <> 'flyway_schema_history'
                          """)) {
                 tables.next();
-                assertThat(tables.getInt(1)).isEqualTo(22);
+                assertThat(tables.getInt(1)).isEqualTo(23);
             }
 
             try (var statement = connection.createStatement();
