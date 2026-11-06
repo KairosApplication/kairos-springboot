@@ -34,7 +34,7 @@ class FlywaySchemaIntegrationTest {
                 row.next();
                 first = row.getObject(1, java.time.OffsetDateTime.class);
             }
-            assertThat(Flyway.configure().dataSource(url, "test", "test").load().migrate().migrationsExecuted).isEqualTo(1);
+            assertThat(Flyway.configure().dataSource(url, "test", "test").target("4").load().migrate().migrationsExecuted).isEqualTo(1);
             try (var statement = connection.createStatement();
                  var row = statement.executeQuery("SELECT first_seen_at FROM user_accesses")) {
                 assertThat(row.next()).isTrue();
@@ -53,7 +53,7 @@ class FlywaySchemaIntegrationTest {
                     .locations("classpath:db/migration")
                     .load();
 
-            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(4);
+            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(5);
 
             try (var statement = connection.createStatement();
                  var tables = statement.executeQuery("""
@@ -62,7 +62,7 @@ class FlywaySchemaIntegrationTest {
                            AND table_name <> 'flyway_schema_history'
                          """)) {
                 tables.next();
-                assertThat(tables.getInt(1)).isEqualTo(23);
+                assertThat(tables.getInt(1)).isEqualTo(24);
             }
 
             try (var statement = connection.createStatement();
