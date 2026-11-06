@@ -94,6 +94,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/me").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/chat-context").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/customer/damage-reports/**").hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/customer/damage-reports").hasRole("CUSTOMER")
 
                         .requestMatchers(HttpMethod.GET, "/api/v1/store-map").hasRole("MANAGER")
 

@@ -300,6 +300,16 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void customerCannotUseStockerDamageReportRoutes() throws Exception {
+        String access = access(login(customer().getEmail()));
+        mvc.perform(get("/api/v1/alerts/customer-reports").header("Authorization", "Bearer " + access))
+                .andExpect(status().isForbidden());
+        mvc.perform(patch("/api/v1/alerts/customer-reports/91/resolve")
+                        .with(cookieCsrf(mvc, mapper)).header("Authorization", "Bearer " + access))
+                .andExpect(status().isForbidden());
+    }
+
     private String expired(String token) {
         var claims = org.springframework.security.oauth2.jwt.JwtClaimsSet.builder()
                 .claims(values -> values.putAll(decoder.decode(token).getClaims()))
