@@ -310,6 +310,41 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void customerProfileReturnsOwnDataWithoutSecretsAndIgnoresForeignIds() throws Exception {
+        User user = customer();
+        User other = customer();
+        String token = access(login(user.getEmail()));
+        mvc.perform(get("/api/v1/auth/profile").param("userId", other.getId().toString())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.userId").value(user.getId().intValue()))
+                .andExpect(jsonPath("$.name").value("Ana"))
+                .andExpect(jsonPath("$.lastName").value("Silva"))
+                .andExpect(jsonPath("$.cpf").value(user.getCpf()))
+                .andExpect(jsonPath("$.birthDate").value("2000-01-01"))
+                .andExpect(jsonPath("$.companyName").value("Test company"))
+                .andExpect(jsonPath("$.password").doesNotExist())
+                .andExpect(jsonPath("$.accessToken").doesNotExist());
+        mvc.perform(post("/api/v1/auth/chat-context").with(cookieCsrf(mvc, mapper))
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.cpf").doesNotExist())
+                .andExpect(jsonPath("$.birthDate").doesNotExist());
+    }
+
+    @Test
+    void stockerProfileReturnsEmployeeAndAnonymousProfileIsDenied() throws Exception {
+        mvc.perform(get("/api/v1/auth/profile")).andExpect(status().isUnauthorized());
+        User user = createUser();
+        var company = TestCompanyFactory.create(companies);
+        var employee = employees.saveAndFlush(new Employee(null, Position.STOCKER, user, company));
+        String token = access(login(user.getEmail()));
+        mvc.perform(get("/api/v1/auth/profile").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.employeeId").value(employee.getId().intValue()))
+                .andExpect(jsonPath("$.companyId").value(company.getId().intValue()))
+                .andExpect(jsonPath("$.position").value("STOCKER"));
+    }
+
     private String expired(String token) {
         var claims = org.springframework.security.oauth2.jwt.JwtClaimsSet.builder()
                 .claims(values -> values.putAll(decoder.decode(token).getClaims()))
